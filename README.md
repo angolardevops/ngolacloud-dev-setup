@@ -31,6 +31,27 @@ make reboot-if-needed
 make health                            # deve estar tudo OK
 ```
 
+## Workflows
+
+```bash
+# Stand up the local Kind cluster (3 workers, Cilium, metrics-server)
+make kind-up
+
+# Build a portal image and load it into the cluster
+make kind-load TAG=ngolacloud/portal:dev
+
+# Tear it down
+make kind-down
+
+# Optional: nested KVM staging (Tier 5 — opt-in, ~16 GB RAM)
+make setup TAGS=kvm                    # install libvirt + qemu first
+make staging-up                        # runs `ngolacloud infra apply -f kvm/...`
+make staging-down
+
+# Pre-commit checks (CI-friendly, no sudo)
+make lint                              # ansible-lint + shellcheck + yamllint
+```
+
 ## Layout
 
 ```
@@ -45,12 +66,16 @@ ngolacloud-dev-setup/
 │       ├── system_tuning/    # sysctl + GRUB + udev + swap
 │       ├── resource_slicing/ # ngolacloud-dev.slice
 │       ├── docker_engine/    # daemon.json + slice integration
-│       ├── kind_tools/       # (Tier 2 — pendente)
-│       ├── rust_toolchain/   # (Tier 3 — pendente)
-│       └── dev_tools/        # (Tier 3 — pendente)
-├── kind/                     # (Tier 2 — cluster configs)
+│       ├── kind_tools/       # kind/kubectl/helm/k9s/stern/krew via GitHub releases
+│       ├── rust_toolchain/   # rustup + sccache + mold + cargo config
+│       ├── dev_tools/        # direnv/fzf/rg/bat/eza/yq
+│       └── kvm_host/         # (opt-in TAGS=kvm) libvirt + qemu for Tier 5 staging
+├── kind/                     # cluster-dev.yaml + cilium-values.yaml
+├── kvm/                      # (opt-in) staging-cluster.toml + cloud-init template
 ├── scripts/
-│   └── health-check.sh       # tabela de estado
+│   ├── kind-up.sh / kind-down.sh / kind-load-image.sh
+│   ├── health-check.sh
+│   └── benchmark.sh
 └── docs/
     └── adr/                  # decisões arquitecturais
 ```
@@ -76,6 +101,13 @@ ngolacloud-dev-setup/
 - **Disco**: ≥ 50 GB livres em `/`
 - **sudo** sem password (ou `ansible-playbook --ask-become-pass`)
 - **ansible** 2.16+ (`apt install ansible`)
+
+### Opcional — para `make lint`
+
+```bash
+sudo apt install shellcheck
+pip install ansible-lint yamllint
+```
 
 ## Princípios
 

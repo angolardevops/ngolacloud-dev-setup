@@ -1,0 +1,71 @@
+# =============================================================================
+# kvm/staging-cluster.toml — nested staging cluster on the workstation
+# =============================================================================
+# Sample .ngolacloud.toml for spinning up a real KVM-backed cluster on the
+# laptop. Use this to validate the `ngolacloud infra apply` codepath end-
+# to-end BEFORE promoting changes to Z440 / Hetzner.
+#
+# Topology: 1 control plane + 2 workers (no HA). Fits in 16 GB RAM.
+# For HA validation use the Z440 cluster instead — nested KVM HA on a
+# laptop overcommits CPU too aggressively to be representative.
+#
+# Run with::
+#
+#     cd ~/workspaces/delonix/ngolacloud-dev-setup
+#     ngolacloud infra apply -f kvm/staging-cluster.toml
+# =============================================================================
+
+[project]
+type    = "infra"
+name    = "ngolacloud-staging-nested"
+version = "1.0.0"
+
+[cluster]
+name     = "ngks-staging"
+provider = "kubeadm"
+# Single CP — HA on a laptop is theatre, not validation. Use Z440 for HA.
+ha       = false
+
+# The host is "this laptop". ngolacloud talks libvirt over the local
+# socket — no SSH hop. The user must already be in the libvirt+kvm
+# groups (kvm_host role takes care of this).
+[hosts.kvm_host]
+address  = "127.0.0.1"
+user     = "{{ runtime_user }}"
+ssh_key  = ""
+connection = "local"
+
+# Topology — sized to fit 16 GB total. cp gets 4, workers 6 each.
+[vms]
+control_planes = 1
+workers        = 2
+
+[vms.control_plane]
+vcpus     = 2
+memory_mb = 4096
+disk_gb   = 40
+
+[vms.worker]
+vcpus     = 2
+memory_mb = 6144
+disk_gb   = 60
+
+# Networking: libvirt default network (192.168.122.0/24). The
+# ngolacloud CLI handles cloud-init NIC config.
+[network]
+libvirt_network = "default"
+pod_cidr        = "10.244.0.0/16"
+service_cidr    = "10.96.0.0/12"
+
+# Image: Ubuntu Server 24.04 cloud image (same minor as prod).
+[base_image]
+distro  = "ubuntu"
+release = "24.04"
+arch    = "amd64"
+# auto-downloaded from cloud-images.ubuntu.com/releases/24.04/ if missing
+url     = "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img"
+
+# Platform deploy disabled for nested staging — we only validate infra.
+# Run `ngolacloud platform deploy` separately after the cluster comes up.
+[platform]
+deploy_at_apply = false

@@ -85,6 +85,13 @@
       tags: [rust]
     - role: dev_tools
       tags: [tools, dev]
+    # ── Optional: Tier 5 nested validation ─────────────────────────────
+    # KVM stack stays opt-in — pulled when the user invokes the playbook
+    # with `--tags kvm` or `make setup TAGS=kvm`. Skipping it is fine for
+    # contributors who only need the Kind dev cluster.
+    - role: kvm_host
+      tags: [kvm, never]
+      # `never` means: only run when the tag is explicitly requested.
 
   post_tasks:
     - name: Final — print summary

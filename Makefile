@@ -33,8 +33,10 @@ endif
 
 .PHONY: help setup setup-check setup-diff health reboot-if-needed \
         prune prune-aggressive uninstall \
-        kind-up kind-down kind-reset \
-        version
+        kind-up kind-up-recreate kind-down kind-down-deep kind-reset kind-load \
+        bench version \
+        lint lint-ansible lint-shell lint-yaml \
+        staging-up staging-down
 
 .DEFAULT_GOAL := help
 
@@ -97,6 +99,36 @@ kind-load: ## Load a local image into the cluster. Usage: make kind-load TAG=ngo
 
 bench: ## Run scripts/benchmark.sh (baseline timings)
 	@scripts/benchmark.sh
+
+# ──────────────────────────────────────────────────────────────────────────
+# Lint — no sudo, no host changes; safe for CI
+# ──────────────────────────────────────────────────────────────────────────
+lint: lint-ansible lint-shell lint-yaml ## Run all linters (Ansible + shellcheck + yamllint)
+
+lint-ansible: ## ansible-lint over roles + playbook
+	@command -v ansible-lint >/dev/null || { printf "$(YEL)ansible-lint missing — pip install ansible-lint$(NC)\n"; exit 1; }
+	@cd $(ANSIBLE_DIR) && ansible-lint --offline setup.yml roles/
+
+lint-shell: ## shellcheck over scripts/*.sh
+	@command -v shellcheck >/dev/null || { printf "$(YEL)shellcheck missing — apt install shellcheck$(NC)\n"; exit 1; }
+	@shellcheck -x scripts/*.sh
+
+lint-yaml: ## yamllint over ansible/ and kind/ + cloud-init
+	@command -v yamllint >/dev/null || { printf "$(YEL)yamllint missing — pip install yamllint$(NC)\n"; exit 1; }
+	@yamllint -d '{extends: default, rules: {line-length: {max: 140}, document-start: disable, truthy: {check-keys: false}}}' \
+		ansible/ kind/
+
+# ──────────────────────────────────────────────────────────────────────────
+# Staging (nested KVM)
+# ──────────────────────────────────────────────────────────────────────────
+staging-up: ## (placeholder) Spin up the nested KVM staging cluster
+	@command -v ngolacloud >/dev/null || { printf "$(RED)ngolacloud CLI not in PATH$(NC)\n"; exit 1; }
+	@printf "$(CYAN)Running:$(NC) ngolacloud infra apply -f kvm/staging-cluster.toml\n"
+	ngolacloud infra apply -f kvm/staging-cluster.toml
+
+staging-down: ## (placeholder) Tear down the nested KVM staging cluster
+	@command -v ngolacloud >/dev/null || { printf "$(RED)ngolacloud CLI not in PATH$(NC)\n"; exit 1; }
+	ngolacloud infra destroy -f kvm/staging-cluster.toml
 
 uninstall: ## Revert as much as possible (slice + sysctl override + daemon.json)
 	@printf "$(RED)── uninstall ──$(NC)\n"

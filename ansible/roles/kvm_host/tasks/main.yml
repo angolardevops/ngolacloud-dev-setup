@@ -1,0 +1,153 @@
+---
+# =============================================================================
+# Role: kvm_host (optional — Tier 5 nested validation)
+# =============================================================================
+# Prepares the workstation to host KVM/libvirt VMs so `ngolacloud infra
+# apply` can run end-to-end against a *real-but-nested* cluster before
+# promoting anything to Z440 / Hetzner.
+#
+# Budget (within the 24 GB "parallel work" portion of host RAM):
+#   1 control plane VM × 4 GB  =  4 GB
+#   2 worker VMs       × 6 GB  = 12 GB
+#   ───────────────────────────────
+#   Total                      = 16 GB    (target)
+#
+# We don't create the VMs here — that's the job of the ngolacloud CLI
+# `infra apply` against kvm/staging-cluster.toml. This role only ensures
+# the *host* can speak libvirt + KVM.
+# =============================================================================
+
+# ── 0) Pre-flight: CPU virtualisation must be enabled in BIOS ─────────────
+- name: KVM — check CPU virtualisation flags
+  ansible.builtin.shell: |
+    set -e
+    if grep -E -m1 '(vmx|svm)' /proc/cpuinfo >/dev/null; then
+      echo present
+    else
+      echo missing
+    fi
+  register: kvm_cpu_flags
+  changed_when: false
+  tags: [kvm, preflight]
+
+- name: KVM — abort if vmx/svm absent (enable virtualisation in BIOS)
+  ansible.builtin.assert:
+    that: kvm_cpu_flags.stdout == 'present'
+    fail_msg: >-
+      CPU virtualisation (vmx/svm) not exposed by the BIOS. Enter BIOS
+      and enable "Intel VT-x" (Intel) or "SVM" (AMD), then reboot.
+  tags: [kvm, preflight]
+
+# ── 1) Install the libvirt + qemu stack ───────────────────────────────────
+- name: KVM — apt install libvirt + qemu-kvm + virt-install + tools
+  ansible.builtin.apt:
+    name:
+      - qemu-kvm
+      - qemu-utils
+      - libvirt-daemon-system
+      - libvirt-clients
+      - virtinst         # virt-install
+      - bridge-utils
+      - cpu-checker      # kvm-ok
+      - genisoimage      # cloud-init seed ISOs
+      - cloud-image-utils # cloud-localds
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags: [kvm]
+
+# ── 2) Ensure libvirtd + virtlogd are running ─────────────────────────────
+- name: KVM — enable + start libvirtd
+  ansible.builtin.systemd:
+    name: libvirtd
+    enabled: true
+    state: started
+  tags: [kvm]
+
+- name: KVM — enable + start virtlogd
+  ansible.builtin.systemd:
+    name: virtlogd
+    enabled: true
+    state: started
+  tags: [kvm]
+
+# ── 3) User permissions ───────────────────────────────────────────────────
+# Adding the invoking user to libvirt + kvm lets `virsh` and `virt-install`
+# run without sudo. New shell session needed for the change to apply.
+- name: KVM — add user to libvirt + kvm groups
+  ansible.builtin.user:
+    name: "{{ ansible_user_id }}"
+    groups: "{{ item }}"
+    append: true
+  loop:
+    - libvirt
+    - kvm
+  when: ansible_user_id != 'root'
+  tags: [kvm]
+
+# ── 4) Default libvirt network (192.168.122.0/24) — autostart ─────────────
+- name: KVM — define default libvirt network if missing
+  ansible.builtin.shell: |
+    set -e
+    if ! virsh net-list --all --name | grep -qw default; then
+      virsh net-define /etc/libvirt/qemu/networks/default.xml
+    fi
+  register: net_define
+  changed_when: "'Network default defined' in net_define.stdout"
+  failed_when: false
+  tags: [kvm, network]
+
+- name: KVM — ensure default network is autostart + active
+  ansible.builtin.shell: |
+    set -e
+    virsh net-autostart default 2>/dev/null || true
+    virsh net-start default 2>/dev/null || true
+  changed_when: false
+  tags: [kvm, network]
+
+# ── 5) Image cache directory (cloud images go here) ───────────────────────
+- name: KVM — image cache dir under /var/lib/libvirt/images
+  ansible.builtin.file:
+    path: /var/lib/libvirt/images/ngolacloud
+    state: directory
+    mode: '0775'
+    owner: libvirt-qemu
+    group: kvm
+  tags: [kvm]
+
+# ── 6) kvm-ok must pass ───────────────────────────────────────────────────
+- name: Verify — kvm-ok reports KVM acceleration available
+  ansible.builtin.shell: kvm-ok
+  register: kvm_ok
+  changed_when: false
+  failed_when: "'KVM acceleration can be used' not in kvm_ok.stdout"
+  tags: [kvm, verify]
+
+# ── 7) Default storage pool present + active ──────────────────────────────
+- name: Verify — default storage pool exists
+  ansible.builtin.shell: |
+    virsh pool-list --all --name | grep -qw default
+  changed_when: false
+  failed_when: false
+  register: pool_exists
+  tags: [kvm, verify]
+
+- name: KVM — create default storage pool if missing
+  ansible.builtin.shell: |
+    virsh pool-define-as default dir --target /var/lib/libvirt/images
+    virsh pool-build default
+    virsh pool-start default
+    virsh pool-autostart default
+  when: pool_exists.rc != 0
+  changed_when: true
+  tags: [kvm]
+
+# ── 8) Final summary ──────────────────────────────────────────────────────
+- name: Verify — print KVM host status
+  ansible.builtin.debug:
+    msg:
+      - "KVM acceleration: {{ kvm_ok.stdout | regex_search('.*KVM acceleration.*') }}"
+      - "User {{ ansible_user_id }} is in libvirt + kvm groups (log out/in to take effect)"
+      - "Images dir: /var/lib/libvirt/images/ngolacloud"
+      - "Next: ngolacloud infra apply -f kvm/staging-cluster.toml"
+  tags: [kvm, verify]
