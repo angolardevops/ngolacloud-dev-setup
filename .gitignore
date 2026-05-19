@@ -1,0 +1,14 @@
+# Ansible runtime
+.ansible_facts_cache/
+*.retry
+*.bak.*
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Project-local
+*.secret
+.envrc.secret

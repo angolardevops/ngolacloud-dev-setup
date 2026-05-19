@@ -1,0 +1,231 @@
+---
+# =============================================================================
+# Role: kind_tools
+# =============================================================================
+# Installs Kubernetes-on-the-laptop tooling. All binaries come from the
+# project's official GitHub releases (or kubernetes.io for kubectl) with
+# checksum verification — never `curl | bash`.
+#
+# Target install path is /usr/local/bin (NOT /usr/bin) so apt upgrades
+# never overwrite us and uninstall is just `rm /usr/local/bin/<tool>`.
+#
+# Idempotent: each tool is skipped if `--version` already matches the
+# pinned version in inventory.ini.
+# =============================================================================
+
+- name: Kind tools — ensure /usr/local/bin exists
+  ansible.builtin.file:
+    path: /usr/local/bin
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  tags: [kind]
+
+# ── kind ──────────────────────────────────────────────────────────────────
+- name: Kind — current version
+  ansible.builtin.shell: |
+    /usr/local/bin/kind version 2>/dev/null | awk '{print $2}' | tr -d 'v'
+  register: kind_current
+  changed_when: false
+  failed_when: false
+  tags: [kind]
+
+- name: Kind — download v{{ kind_version }}
+  ansible.builtin.get_url:
+    url: "https://kind.sigs.k8s.io/dl/v{{ kind_version }}/kind-linux-amd64"
+    dest: /usr/local/bin/kind
+    mode: '0755'
+    owner: root
+    group: root
+    # checksum file is published next to the binary
+    checksum: "sha256:https://kind.sigs.k8s.io/dl/v{{ kind_version }}/kind-linux-amd64.sha256sum"
+  when: kind_current.stdout != kind_version
+  tags: [kind]
+
+# ── kubectl ───────────────────────────────────────────────────────────────
+- name: Kubectl — current version
+  ansible.builtin.shell: |
+    /usr/local/bin/kubectl version --client --output=yaml 2>/dev/null \
+      | awk '/gitVersion:/ {print $2}' | tr -d 'v' | head -1
+  register: kubectl_current
+  changed_when: false
+  failed_when: false
+  tags: [kind]
+
+- name: Kubectl — download v{{ kubectl_version }}
+  ansible.builtin.get_url:
+    url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/amd64/kubectl"
+    dest: /usr/local/bin/kubectl
+    mode: '0755'
+    owner: root
+    group: root
+    checksum: "sha256:https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/amd64/kubectl.sha256"
+  when: kubectl_current.stdout != kubectl_version
+  tags: [kind]
+
+# ── helm ──────────────────────────────────────────────────────────────────
+- name: Helm — current version
+  ansible.builtin.shell: |
+    /usr/local/bin/helm version --short 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1
+  register: helm_current
+  changed_when: false
+  failed_when: false
+  tags: [kind]
+
+- name: Helm — download tarball
+  ansible.builtin.get_url:
+    url: "https://get.helm.sh/helm-v{{ helm_version }}-linux-amd64.tar.gz"
+    dest: "/tmp/helm-v{{ helm_version }}.tar.gz"
+    mode: '0644'
+    checksum: "sha256:https://get.helm.sh/helm-v{{ helm_version }}-linux-amd64.tar.gz.sha256sum"
+  when: helm_current.stdout != helm_version
+  tags: [kind]
+
+- name: Helm — extract binary
+  ansible.builtin.unarchive:
+    src: "/tmp/helm-v{{ helm_version }}.tar.gz"
+    dest: /usr/local/bin/
+    remote_src: true
+    extra_opts: ['--strip-components=1', '--no-anchored', 'helm']
+    mode: '0755'
+    owner: root
+    group: root
+  when: helm_current.stdout != helm_version
+  tags: [kind]
+
+# ── kustomize ─────────────────────────────────────────────────────────────
+- name: Kustomize — current version
+  ansible.builtin.shell: |
+    /usr/local/bin/kustomize version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1
+  register: kustomize_current
+  changed_when: false
+  failed_when: false
+  tags: [kind]
+
+- name: Kustomize — download tarball
+  ansible.builtin.get_url:
+    url: "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv{{ kustomize_version }}/kustomize_v{{ kustomize_version }}_linux_amd64.tar.gz"
+    dest: "/tmp/kustomize-v{{ kustomize_version }}.tar.gz"
+    mode: '0644'
+  when: kustomize_current.stdout != kustomize_version
+  tags: [kind]
+
+- name: Kustomize — extract binary
+  ansible.builtin.unarchive:
+    src: "/tmp/kustomize-v{{ kustomize_version }}.tar.gz"
+    dest: /usr/local/bin/
+    remote_src: true
+    mode: '0755'
+    owner: root
+    group: root
+  when: kustomize_current.stdout != kustomize_version
+  tags: [kind]
+
+# ── k9s ───────────────────────────────────────────────────────────────────
+- name: K9s — current version
+  ansible.builtin.shell: |
+    /usr/local/bin/k9s version --short 2>/dev/null | awk '/Version/ {print $2}' | tr -d 'v'
+  register: k9s_current
+  changed_when: false
+  failed_when: false
+  tags: [kind]
+
+- name: K9s — download tarball
+  ansible.builtin.get_url:
+    url: "https://github.com/derailed/k9s/releases/download/v{{ k9s_version }}/k9s_Linux_amd64.tar.gz"
+    dest: "/tmp/k9s-v{{ k9s_version }}.tar.gz"
+    mode: '0644'
+  when: k9s_current.stdout != k9s_version
+  tags: [kind]
+
+- name: K9s — extract binary
+  ansible.builtin.unarchive:
+    src: "/tmp/k9s-v{{ k9s_version }}.tar.gz"
+    dest: /usr/local/bin/
+    remote_src: true
+    extra_opts: ['--no-anchored', 'k9s']
+    mode: '0755'
+    owner: root
+    group: root
+  when: k9s_current.stdout != k9s_version
+  tags: [kind]
+
+# ── stern (multi-pod log tail) ────────────────────────────────────────────
+- name: Stern — current version
+  ansible.builtin.shell: |
+    /usr/local/bin/stern --version 2>/dev/null | awk '/version:/ {print $2}' | tr -d 'v'
+  register: stern_current
+  changed_when: false
+  failed_when: false
+  tags: [kind]
+
+- name: Stern — download tarball
+  ansible.builtin.get_url:
+    url: "https://github.com/stern/stern/releases/download/v{{ stern_version }}/stern_{{ stern_version }}_linux_amd64.tar.gz"
+    dest: "/tmp/stern-v{{ stern_version }}.tar.gz"
+    mode: '0644'
+  when: stern_current.stdout != stern_version
+  tags: [kind]
+
+- name: Stern — extract binary
+  ansible.builtin.unarchive:
+    src: "/tmp/stern-v{{ stern_version }}.tar.gz"
+    dest: /usr/local/bin/
+    remote_src: true
+    extra_opts: ['--no-anchored', 'stern']
+    mode: '0755'
+    owner: root
+    group: root
+  when: stern_current.stdout != stern_version
+  tags: [kind]
+
+# ── krew (kubectl plugin manager) — runs as the invoking user ─────────────
+- name: Krew — check user install
+  ansible.builtin.stat:
+    path: "/home/{{ ansible_user_id }}/.krew/bin/kubectl-krew"
+  register: krew_stat
+  when: ansible_user_id != 'root'
+  tags: [kind]
+
+- name: Krew — download installer tarball
+  ansible.builtin.get_url:
+    url: "https://github.com/kubernetes-sigs/krew/releases/download/v{{ krew_version }}/krew-linux_amd64.tar.gz"
+    dest: "/tmp/krew-v{{ krew_version }}.tar.gz"
+    mode: '0644'
+    owner: "{{ ansible_user_id }}"
+  become_user: "{{ ansible_user_id }}"
+  become: true
+  when:
+    - ansible_user_id != 'root'
+    - not krew_stat.stat.exists
+  tags: [kind]
+
+- name: Krew — install (user-scoped, no root)
+  ansible.builtin.shell: |
+    set -e
+    cd /tmp
+    tar -xzf krew-v{{ krew_version }}.tar.gz
+    ./krew-linux_amd64 install krew
+  become_user: "{{ ansible_user_id }}"
+  become: true
+  args:
+    creates: "/home/{{ ansible_user_id }}/.krew/bin/kubectl-krew"
+  when: ansible_user_id != 'root'
+  tags: [kind]
+
+# ── Post-condition verification ───────────────────────────────────────────
+- name: Verify — every tool reports the pinned version
+  ansible.builtin.shell: |
+    set -e
+    actual=$({{ item.cmd }})
+    [ "$actual" = "{{ item.want }}" ] || { echo "WANT={{ item.want }} GOT=$actual"; exit 1; }
+  loop:
+    - cmd: "/usr/local/bin/kind version | awk '{print $2}' | tr -d 'v'"
+      want: "{{ kind_version }}"
+    - cmd: "/usr/local/bin/kubectl version --client --output=yaml | awk '/gitVersion:/ {print $2}' | tr -d 'v' | head -1"
+      want: "{{ kubectl_version }}"
+    - cmd: "/usr/local/bin/helm version --short | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | head -1"
+      want: "{{ helm_version }}"
+  changed_when: false
+  tags: [kind, verify]

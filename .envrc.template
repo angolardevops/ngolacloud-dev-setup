@@ -1,0 +1,46 @@
+# =============================================================================
+# .envrc — direnv per-project env template for ngolacloud projects
+# =============================================================================
+# Copy this file to .envrc in any ngolacloud-* repo and customise. direnv
+# (installed by dev_tools role) will source it when you `cd` into the dir.
+# Run `direnv allow` the first time after editing.
+#
+# Conventions:
+#   * KUBECONFIG points at the local Kind cluster by default — flip via
+#     `direnv exec KUBECONFIG=...` for remote contexts
+#   * CARGO_TARGET_DIR lives under XDG_CACHE_HOME to keep workspaces small
+#   * RUSTC_WRAPPER and CARGO_INCREMENTAL match the global ~/.cargo/config
+# =============================================================================
+
+# ── Kubernetes ────────────────────────────────────────────────────────────
+export KUBECONFIG="$HOME/.kube/config"
+export KIND_CLUSTER="ngolacloud-dev"
+# Pin kubectl to the dev cluster context so accidental `kubectl apply` can't
+# hit production:
+kubectl config use-context "kind-$KIND_CLUSTER" 2>/dev/null || true
+
+# ── Rust ──────────────────────────────────────────────────────────────────
+export RUSTC_WRAPPER="/usr/local/bin/sccache"
+export CARGO_INCREMENTAL=0   # sccache works better with incremental off
+export CARGO_TARGET_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/cargo-target/$(basename "$PWD")"
+mkdir -p "$CARGO_TARGET_DIR"
+
+# ── Go (some ngolacloud projects use both) ────────────────────────────────
+export GOFLAGS="-mod=readonly"
+export GOCACHE="${XDG_CACHE_HOME:-$HOME/.cache}/go-build"
+
+# ── NgolaCloud CLI ────────────────────────────────────────────────────────
+# Set this if the project ships a .ngolacloud.toml for the dev cluster:
+# export NGOLACLOUD_TOML="$PWD/.ngolacloud.toml"
+
+# ── Secrets ───────────────────────────────────────────────────────────────
+# Source a non-committed file for tokens / API keys. Add `*.secret` to
+# .gitignore in the project to keep this safe.
+if [ -f .envrc.secret ]; then
+  source_env .envrc.secret
+fi
+
+# ── PATH ──────────────────────────────────────────────────────────────────
+# Project-local bins (if you keep build outputs in ./bin or ./target/release)
+PATH_add "$PWD/target/release"
+PATH_add "$PWD/bin"

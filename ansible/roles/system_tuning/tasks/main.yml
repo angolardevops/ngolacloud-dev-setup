@@ -1,0 +1,175 @@
+---
+# =============================================================================
+# Role: system_tuning
+# =============================================================================
+# Applies kernel + boot + storage knobs tuned for a Kind-on-laptop workload.
+# Idempotent. Reboot is required only when GRUB params change — the handler
+# records the marker file /var/run/reboot-required so `make health` can
+# surface it.
+# =============================================================================
+
+# ── 1) sysctl ─────────────────────────────────────────────────────────────
+- name: Tuning — install /etc/sysctl.d/99-ngolacloud-dev.conf
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-ngolacloud-dev.conf
+    mode: '0644'
+    owner: root
+    group: root
+    content: |
+      # === Kubernetes/Kind requirements (kubelet inotify, bridge nf) ===
+      fs.inotify.max_user_watches    = 524288
+      fs.inotify.max_user_instances  = 512
+      fs.inotify.max_queued_events   = 16384
+      net.bridge.bridge-nf-call-iptables  = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward                  = 1
+
+      # === Memory: laptop-friendly (prefer RAM, allow swap under pressure) ===
+      vm.swappiness          = 10
+      vm.overcommit_memory   = 1
+      vm.overcommit_ratio    = 100
+      vm.dirty_ratio              = 10
+      vm.dirty_background_ratio   = 5
+      vm.dirty_expire_centisecs   = 3000
+
+      # === Network: more sockets per container ===
+      net.core.somaxconn              = 16384
+      net.core.netdev_max_backlog     = 16384
+      net.ipv4.tcp_max_syn_backlog    = 8192
+      net.ipv4.tcp_tw_reuse           = 1
+      net.ipv4.ip_local_port_range    = 10000 65535
+
+      # === File descriptors (Docker opens many) ===
+      fs.file-max  = 2097152
+      fs.nr_open   = 1048576
+
+      # === mmap (Cilium, ES, Loki) ===
+      vm.max_map_count = 524288
+  notify: Reload sysctl
+  tags: [system, tuning, sysctl]
+
+# ── 2) modules ────────────────────────────────────────────────────────────
+- name: Tuning — ensure br_netfilter loaded at boot
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/ngolacloud-dev.conf
+    mode: '0644'
+    content: |
+      br_netfilter
+      overlay
+  tags: [system, tuning, sysctl]
+
+- name: Tuning — load br_netfilter now
+  community.general.modprobe:
+    name: br_netfilter
+    state: present
+  tags: [system, tuning, sysctl]
+
+# ── 3) GRUB (THP=madvise + cgroup_enable=memory + swapaccount=1) ──────────
+- name: Tuning — set GRUB_CMDLINE_LINUX_DEFAULT
+  ansible.builtin.lineinfile:
+    path: /etc/default/grub
+    regexp: '^GRUB_CMDLINE_LINUX_DEFAULT='
+    line: >-
+      GRUB_CMDLINE_LINUX_DEFAULT="quiet splash transparent_hugepage=madvise
+      mitigations=auto cgroup_enable=memory swapaccount=1"
+    backup: true
+  register: grub_cmd
+  tags: [system, grub]
+
+- name: Tuning — update-grub when cmdline changed
+  ansible.builtin.command: update-grub
+  when: grub_cmd.changed
+  tags: [system, grub]
+
+- name: Tuning — mark reboot required if GRUB changed
+  ansible.builtin.file:
+    path: /var/run/reboot-required
+    state: touch
+    mode: '0644'
+  when: grub_cmd.changed
+  changed_when: false
+  tags: [system, grub]
+
+# ── 4) THP runtime (apply 'madvise' immediately, no reboot) ───────────────
+- name: Tuning — runtime THP = madvise
+  ansible.builtin.shell: |
+    echo madvise > /sys/kernel/mm/transparent_hugepage/enabled
+  changed_when: false
+  tags: [system, tuning]
+
+# ── 5) udev I/O schedulers ────────────────────────────────────────────────
+- name: Tuning — install /etc/udev/rules.d/60-ioschedulers.rules
+  ansible.builtin.copy:
+    dest: /etc/udev/rules.d/60-ioschedulers.rules
+    mode: '0644'
+    content: |
+      ACTION=="add|change", KERNEL=="nvme[0-9]*", ATTR{queue/scheduler}="none"
+      ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="mq-deadline"
+      ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="bfq"
+  notify: Reload udev
+  tags: [system, tuning, io]
+
+# ── 6) Swap file (16 GB) ──────────────────────────────────────────────────
+- name: Swap — check current state
+  ansible.builtin.shell: swapon --show=NAME --noheadings
+  register: swap_now
+  changed_when: false
+  tags: [system, swap]
+
+- name: Swap — allocate {{ swap_file_size_gb }} GB swap file
+  ansible.builtin.command:
+    cmd: "fallocate -l {{ swap_file_size_gb }}G {{ swap_file_path }}"
+    creates: "{{ swap_file_path }}"
+  tags: [system, swap]
+
+- name: Swap — chmod 600 (kernel refuses world-readable swap)
+  ansible.builtin.file:
+    path: "{{ swap_file_path }}"
+    mode: '0600'
+    owner: root
+    group: root
+  tags: [system, swap]
+
+- name: Swap — mkswap when file present but unsigned
+  ansible.builtin.shell: |
+    if ! blkid {{ swap_file_path }} | grep -q swap; then
+      mkswap {{ swap_file_path }}
+    fi
+  changed_when: false
+  tags: [system, swap]
+
+- name: Swap — swapon now
+  ansible.builtin.command:
+    cmd: "swapon {{ swap_file_path }}"
+  when: swap_file_path not in swap_now.stdout
+  tags: [system, swap]
+
+- name: Swap — persist in /etc/fstab
+  ansible.posix.mount:
+    path: none
+    src: "{{ swap_file_path }}"
+    fstype: swap
+    opts: sw,pri=10
+    state: present
+  tags: [system, swap]
+
+# ── 7) Post-condition verification ────────────────────────────────────────
+- name: Verify — vm.swappiness == 10
+  ansible.builtin.shell: sysctl -n vm.swappiness
+  register: post_swappiness
+  changed_when: false
+  failed_when: post_swappiness.stdout != "10"
+  tags: [system, verify]
+
+- name: Verify — swap is on
+  ansible.builtin.shell: swapon --show=NAME --noheadings | grep -q .
+  changed_when: false
+  failed_when: false
+  register: post_swap
+  tags: [system, verify]
+
+- name: Verify — assert swap mounted
+  ansible.builtin.assert:
+    that: post_swap.rc == 0
+    fail_msg: "swap is not on — system_tuning failed half-way"
+  tags: [system, verify]

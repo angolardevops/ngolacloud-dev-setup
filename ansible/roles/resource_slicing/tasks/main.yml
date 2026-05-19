@@ -1,0 +1,87 @@
+---
+# =============================================================================
+# Role: resource_slicing
+# =============================================================================
+# Creates the ngolacloud-dev.slice with the host budget (32 GB MemoryMax,
+# 28 GB MemoryHigh, CPUWeight=75). Wires docker.service into the slice via
+# a drop-in so every container Docker spawns — and therefore every Kind
+# node container — is accounted to and capped by this slice.
+#
+# Without this the Kind cluster can consume the full 62 GB and OOM-kill
+# the GNOME shell.
+# =============================================================================
+
+- name: Slice — install /etc/systemd/system/ngolacloud-dev.slice
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/ngolacloud-dev.slice
+    mode: '0644'
+    owner: root
+    group: root
+    content: |
+      [Unit]
+      Description=ngolacloud development resource slice
+      Before=slices.target
+
+      [Slice]
+      # Hard memory cap — kernel OOM-kills inside the slice before
+      # touching anything outside it.
+      MemoryMax={{ slice_memory_max_gb }}G
+      # Soft warning — pressure-stall triggers before the hard cap, so
+      # workloads have time to release memory cleanly.
+      MemoryHigh={{ slice_memory_high_gb }}G
+      # CPU: 75/100 weight = ~75% of cores under contention; idle weight
+      # has no effect when nobody else is competing.
+      CPUWeight={{ slice_cpu_weight }}
+      # I/O: default weight (no preferential treatment).
+      IOWeight=100
+      # PID cap so a runaway pod can't fork-bomb the host.
+      TasksMax={{ slice_tasks_max }}
+  notify: Reload systemd
+  tags: [slice, systemd]
+
+- name: Slice — docker.service drop-in joining ngolacloud-dev.slice
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/slice.conf
+    mode: '0644'
+    owner: root
+    group: root
+    content: |
+      # Wires docker.service into ngolacloud-dev.slice. Every container
+      # spawned (including Kind node containers) inherits the slice's
+      # memory/CPU/PID accounting and limits.
+      [Service]
+      Slice=ngolacloud-dev.slice
+  notify:
+    - Reload systemd
+    - Restart docker
+  tags: [slice, systemd]
+
+# ── Verification ──────────────────────────────────────────────────────────
+- name: Slice — daemon-reload now so verify steps see the slice
+  ansible.builtin.systemd:
+    daemon_reload: true
+  changed_when: false
+  tags: [slice, systemd]
+
+- name: Slice — start it (otherwise systemd lazy-loads)
+  ansible.builtin.systemd:
+    name: ngolacloud-dev.slice
+    state: started
+  tags: [slice, systemd]
+
+- name: Verify — slice has the configured MemoryMax
+  ansible.builtin.shell: |
+    systemctl show ngolacloud-dev.slice -p MemoryMax --value
+  register: post_mem
+  changed_when: false
+  tags: [slice, verify]
+
+- name: Verify — assert MemoryMax matches inventory
+  ansible.builtin.assert:
+    that:
+      - post_mem.stdout | int == (slice_memory_max_gb | int) * 1024 * 1024 * 1024
+    fail_msg: >-
+      ngolacloud-dev.slice MemoryMax={{ post_mem.stdout }} bytes, expected
+      {{ (slice_memory_max_gb | int) * 1024 * 1024 * 1024 }} bytes
+      ({{ slice_memory_max_gb }} GB)
+  tags: [slice, verify]

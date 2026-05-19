@@ -1,0 +1,177 @@
+---
+# =============================================================================
+# Role: docker_engine
+# =============================================================================
+# Pre-flight: detect & reject Snap Docker (known to use cgroupfs driver and
+# refuse to participate in our systemd slice). Then ensure the official
+# Docker apt repo is present, leave the installed version alone if it
+# already matches the pinned target, and install/update otherwise.
+#
+# Final step: write /etc/docker/daemon.json with the operational config
+# (overlay2, systemd cgroup, ipv6 off, log rotation, address pool that
+# avoids common corp-Wi-Fi 172.x ranges, BuildKit, live-restore).
+# =============================================================================
+
+# ── 1) Reject Snap Docker (would break cgroup driver) ─────────────────────
+- name: Docker — detect Snap install
+  ansible.builtin.stat:
+    path: /snap/docker
+  register: snap_docker
+  tags: [docker]
+
+- name: Docker — abort if Snap Docker present
+  ansible.builtin.assert:
+    that: not snap_docker.stat.exists
+    fail_msg: >-
+      Snap Docker detected at /snap/docker. It uses cgroupfs and won't
+      respect ngolacloud-dev.slice. Run `sudo snap remove docker` and
+      re-run setup.
+  tags: [docker]
+
+# ── 2) APT prerequisites for Docker repo ──────────────────────────────────
+- name: Docker — apt prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags: [docker]
+
+# ── 3) Docker apt repo (GPG key + sources list) ───────────────────────────
+- name: Docker — keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+  tags: [docker]
+
+- name: Docker — install GPG key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '0644'
+    force: false
+  tags: [docker]
+
+# Zorin 18 is Ubuntu 24.04 ("noble") under the hood — pin to noble
+# explicitly because the Docker repo doesn't ship a "zorin" codename.
+- name: Docker — add apt source (pinned to ubuntu/noble)
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/docker.list
+    mode: '0644'
+    content: |
+      deb [arch={{ ansible_architecture | regex_replace('x86_64', 'amd64') }}
+       signed-by=/etc/apt/keyrings/docker.asc]
+       https://download.docker.com/linux/ubuntu noble stable
+  notify: Apt update
+  tags: [docker]
+
+- name: Docker — flush apt update handler now
+  ansible.builtin.meta: flush_handlers
+  tags: [docker]
+
+# ── 4) Install the pinned Docker version ──────────────────────────────────
+- name: Docker — install pinned version
+  ansible.builtin.apt:
+    name:
+      - "docker-ce={{ docker_version_pin }}"
+      - "docker-ce-cli={{ docker_version_pin }}"
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    allow_downgrade: true
+    update_cache: true
+  tags: [docker]
+
+# ── 5) daemon.json — operational config ───────────────────────────────────
+# Backup any existing file once, with timestamp, before overwriting.
+- name: Docker — stat existing daemon.json
+  ansible.builtin.stat:
+    path: /etc/docker/daemon.json
+  register: existing_daemon
+  tags: [docker]
+
+- name: Docker — back up existing daemon.json
+  ansible.builtin.copy:
+    src: /etc/docker/daemon.json
+    dest: "/etc/docker/daemon.json.bak.{{ ansible_date_time.iso8601_basic_short }}"
+    remote_src: true
+    mode: '0644'
+  when: existing_daemon.stat.exists
+  tags: [docker]
+
+- name: Docker — write /etc/docker/daemon.json
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    mode: '0644'
+    owner: root
+    group: root
+    content: |
+      {
+        "exec-opts": ["native.cgroupdriver=systemd"],
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "100m",
+          "max-file": "3"
+        },
+        "storage-driver": "overlay2",
+        "default-address-pools": [
+          {"base": "{{ docker_address_pool_base }}", "size": {{ docker_address_pool_size }}}
+        ],
+        "features": {
+          "buildkit": true
+        },
+        "max-concurrent-downloads": 10,
+        "max-concurrent-uploads": 5,
+        "live-restore": true,
+        "userland-proxy": false,
+        "ipv6": false
+      }
+  notify: Restart docker
+  tags: [docker, daemon]
+
+- name: Docker — ensure service enabled + started
+  ansible.builtin.systemd:
+    name: docker.service
+    enabled: true
+    state: started
+  tags: [docker]
+
+# ── 6) Add current user to docker group (so kubectl/kind run without sudo) ─
+- name: Docker — add invoking user to docker group
+  ansible.builtin.user:
+    name: "{{ ansible_user_id }}"
+    groups: docker
+    append: true
+  when: ansible_user_id != 'root'
+  tags: [docker]
+
+# ── 7) Post-condition verification ────────────────────────────────────────
+- name: Verify — docker info reports systemd cgroup driver
+  ansible.builtin.shell: |
+    docker info --format '{{ "{{" }} .CgroupDriver {{ "}}" }}'
+  register: cgroup_drv
+  changed_when: false
+  failed_when: cgroup_drv.stdout != "systemd"
+  tags: [docker, verify]
+
+- name: Verify — docker info reports overlay2 storage
+  ansible.builtin.shell: |
+    docker info --format '{{ "{{" }} .Driver {{ "}}" }}'
+  register: storage_drv
+  changed_when: false
+  failed_when: storage_drv.stdout != "overlay2"
+  tags: [docker, verify]
+
+- name: Verify — docker.service is inside ngolacloud-dev.slice
+  ansible.builtin.shell: |
+    systemctl show docker.service -p Slice --value
+  register: docker_slice
+  changed_when: false
+  failed_when: docker_slice.stdout != "ngolacloud-dev.slice"
+  tags: [docker, verify]

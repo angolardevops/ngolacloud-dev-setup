@@ -1,0 +1,97 @@
+---
+# =============================================================================
+# ngolacloud-dev-setup — orchestrator
+# =============================================================================
+# Run with::
+#
+#     make setup            # full Tier 0+1 (host tuning + Docker + slice)
+#     make setup TAGS=docker
+#     make setup TAGS=docker,slice  ANSIBLE_VERBOSE=-vv
+#
+# Idempotent: re-runs after partial failures are safe. Each role asserts
+# its post-condition at the end of its tasks so a successful run means
+# the host actually reached the target state — not just that no command
+# failed.
+# =============================================================================
+
+- name: ngolacloud-dev workstation setup
+  hosts: ngolacloud_dev
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    # ── Pre-flight: refuse to run on a host that doesn't match the
+    #    assumptions baked into the roles. Cheap to check, expensive to
+    #    debug a partial install on the wrong distro.
+    - name: Preflight — refuse non-Ubuntu/Zorin
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution in ['Ubuntu', 'Zorin']
+          - ansible_distribution_major_version | int >= 24
+        fail_msg: >-
+          This setup targets Ubuntu 24.04+ or Zorin 18+ (Ubuntu 24.04
+          base). Detected {{ ansible_distribution }} {{ ansible_distribution_version }}.
+      tags: [always]
+
+    - name: Preflight — cgroup v2 must be the unified hierarchy
+      ansible.builtin.stat:
+        path: /sys/fs/cgroup/cgroup.controllers
+      register: cgroupv2
+      tags: [always]
+
+    - name: Preflight — abort if cgroup v2 absent
+      ansible.builtin.assert:
+        that: cgroupv2.stat.exists
+        fail_msg: >-
+          cgroup v2 unified hierarchy required. Add
+          'systemd.unified_cgroup_hierarchy=1' to GRUB_CMDLINE_LINUX and reboot.
+      tags: [always]
+
+    - name: Preflight — at least 50 GB free on /
+      ansible.builtin.shell: |
+        df -BG --output=avail / | tail -1 | tr -dc '0-9'
+      register: free_gb
+      changed_when: false
+      tags: [always]
+
+    - name: Preflight — abort if disk is full
+      ansible.builtin.assert:
+        that: (free_gb.stdout | int) >= 50
+        fail_msg: >-
+          Need at least 50 GB free on /. Currently {{ free_gb.stdout }} GB.
+          Run `make prune` or free space before continuing.
+      tags: [always]
+
+  roles:
+    # Order matters:
+    #   1. system_tuning   — sysctls + GRUB + swap (THP/swap need reboot
+    #                        to fully apply but the rest is live)
+    #   2. resource_slicing — slice must exist before docker.service is
+    #                        wired into it
+    #   3. docker_engine   — daemon.json references the slice
+    #   4. kind_tools     — kind/kubectl/helm/k9s/stern (binaries only;
+    #                        no cluster created — that's scripts/kind-up.sh)
+    #   5. rust_toolchain — rustup + sccache + mold + cargo config
+    #   6. dev_tools      — direnv/fzf/rg/bat/eza/yq + bash hooks
+    - role: system_tuning
+      tags: [system, tuning, sysctl, grub, swap]
+    - role: resource_slicing
+      tags: [slice, systemd]
+    - role: docker_engine
+      tags: [docker, daemon]
+    - role: kind_tools
+      tags: [kind, k8s]
+    - role: rust_toolchain
+      tags: [rust]
+    - role: dev_tools
+      tags: [tools, dev]
+
+  post_tasks:
+    - name: Final — print summary
+      ansible.builtin.debug:
+        msg:
+          - "✓ ngolacloud-dev setup complete"
+          - "  • Slice: ngolacloud-dev.slice (MemoryMax={{ slice_memory_max_gb }}G)"
+          - "  • Docker: $(docker --version 2>/dev/null || echo 'pending')"
+          - "  • Reboot needed: GRUB params changed → run `make reboot-if-needed`"
+      tags: [always]

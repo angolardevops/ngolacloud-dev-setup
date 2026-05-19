@@ -1,0 +1,52 @@
+# =============================================================================
+# kind/cilium-values.yaml — Helm values for Cilium on Kind
+# =============================================================================
+# These values are tuned for the ngolacloud-dev cluster (1 CP + 3 workers,
+# kindest/node v1.32). Differences vs production:
+#
+#   • ipam.mode=kubernetes — uses the Kubernetes-allocated podCIDR per
+#     node (10.244.x.0/24) instead of Cilium-IPAM. Simpler for a laptop;
+#     in prod we use cluster-pool.
+#   • operator.replicas=1 — single-node-ish workloads don't need HA.
+#   • kubeProxyReplacement=true — Cilium is the dataplane; the cluster
+#     was created with kubeProxyMode: none.
+#   • hubble enabled — observability TUI on http://localhost:12000 (port-fwd).
+# =============================================================================
+image:
+  pullPolicy: IfNotPresent
+
+ipam:
+  mode: kubernetes
+
+kubeProxyReplacement: true
+# Reachable via the kind API server: ``kind-control-plane`` container
+# hostname on the kind network. The kind-up.sh wrapper sets this dynamically.
+k8sServiceHost: "ngolacloud-dev-control-plane"
+k8sServicePort: 6443
+
+# Single operator pod — no HA needed on a laptop.
+operator:
+  replicas: 1
+
+# Hubble: relay + UI for inspecting network policies and flows.
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+
+# Routing mode: tunnel (VXLAN) is the most compatible with Kind's
+# Docker-bridge networking. Production may switch to native-routing
+# when run on a real Linux host.
+routingMode: tunnel
+tunnelProtocol: vxlan
+
+# Bandwidth manager off — laptop doesn't need QoS shaping.
+bandwidthManager:
+  enabled: false
+
+# eBPF host routing — keep off in Kind, it's flaky on virtualised hosts.
+bpf:
+  hostLegacyRouting: true
+  masquerade: true

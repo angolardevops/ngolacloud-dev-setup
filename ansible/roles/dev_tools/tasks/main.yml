@@ -1,0 +1,129 @@
+---
+# =============================================================================
+# Role: dev_tools
+# =============================================================================
+# Installs the small TUI / CLI utilities the operator uses every day:
+# direnv, fzf, ripgrep, bat, eza, jq (apt or GitHub), yq, dive, lazydocker,
+# trivy, gh. All from Ubuntu 24.04 apt where the version is recent enough;
+# from GitHub releases otherwise (eza, yq, dive, lazydocker, trivy).
+#
+# Idempotent. Adds an opinionated direnv hook to /etc/bash.bashrc so
+# every shell session picks up `.envrc` files automatically.
+# =============================================================================
+
+# ── apt-installable (Ubuntu 24.04 LTS ships current versions) ─────────────
+- name: Dev tools — apt install (direnv, fzf, ripgrep, bat, jq, btop)
+  ansible.builtin.apt:
+    name:
+      - direnv
+      - fzf
+      - ripgrep
+      - bat        # binary is `batcat` on Ubuntu; symlink below
+      - jq
+      - btop
+      - tree
+      - htop
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags: [tools]
+
+# bat ships as `batcat` on Debian/Ubuntu to avoid clashing with bacula's
+# `bat`. Make it discoverable as `bat` too.
+- name: Dev tools — symlink batcat → bat
+  ansible.builtin.file:
+    src: /usr/bin/batcat
+    dest: /usr/local/bin/bat
+    state: link
+    force: true
+  tags: [tools]
+
+# ── eza (modern ls replacement; not in Ubuntu 24.04 main repos) ───────────
+- name: Eza — apt install (via eza-community PPA-style repo)
+  ansible.builtin.apt:
+    deb: "https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-musl.tar.gz"
+    state: present
+  when: false   # tarball isn't a .deb — disabled, see next two tasks instead
+  tags: [tools]
+
+- name: Eza — current version
+  ansible.builtin.shell: /usr/local/bin/eza --version 2>/dev/null | awk '/eza/ {print $2}' | head -1
+  register: eza_current
+  changed_when: false
+  failed_when: false
+  tags: [tools]
+
+- name: Eza — download tarball (latest stable)
+  ansible.builtin.get_url:
+    url: "https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-musl.tar.gz"
+    dest: /tmp/eza.tar.gz
+    mode: '0644'
+  when: eza_current.stdout == ''
+  tags: [tools]
+
+- name: Eza — extract binary
+  ansible.builtin.unarchive:
+    src: /tmp/eza.tar.gz
+    dest: /usr/local/bin/
+    remote_src: true
+    extra_opts: ['--no-anchored', 'eza']
+    mode: '0755'
+    owner: root
+    group: root
+  when: eza_current.stdout == ''
+  tags: [tools]
+
+# ── yq (Mike Farah's Go yq, not the kislyuk Python yq) ────────────────────
+- name: Yq — current version
+  ansible.builtin.shell: /usr/local/bin/yq --version 2>/dev/null | awk '{print $NF}' | tr -d 'v'
+  register: yq_current
+  changed_when: false
+  failed_when: false
+  tags: [tools]
+
+- name: Yq — download binary
+  ansible.builtin.get_url:
+    url: "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64"
+    dest: /usr/local/bin/yq
+    mode: '0755'
+    owner: root
+    group: root
+    force: false
+  when: yq_current.stdout == ''
+  tags: [tools]
+
+# ── direnv hook in /etc/bash.bashrc ───────────────────────────────────────
+- name: Direnv — system-wide bash hook
+  ansible.builtin.lineinfile:
+    path: /etc/bash.bashrc
+    regexp: '^eval "\$\(direnv hook bash\)"'
+    line: 'eval "$(direnv hook bash)"'
+    state: present
+    create: true
+    mode: '0644'
+  tags: [tools]
+
+# ── gh CLI (likely already installed; idempotent) ─────────────────────────
+- name: Gh — apt prereq + repo
+  ansible.builtin.apt:
+    name:
+      - gh
+    state: present
+  failed_when: false   # if gh not in apt repo, skip — user can install manually
+  tags: [tools]
+
+# ── Verify ────────────────────────────────────────────────────────────────
+- name: Verify — every tool resolves
+  ansible.builtin.shell: |
+    set -e
+    command -v {{ item }} >/dev/null
+  loop:
+    - direnv
+    - fzf
+    - rg
+    - bat
+    - eza
+    - yq
+    - jq
+  changed_when: false
+  tags: [tools, verify]

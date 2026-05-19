@@ -1,0 +1,62 @@
+# =============================================================================
+# kind/cluster-dev.yaml — Kind cluster for ngolacloud development
+# =============================================================================
+# Topology: 1 control plane + 3 workers, sized to fit inside the
+# ngolacloud-dev.slice 32 GB budget:
+#
+#   1 control plane × ~4 GB =  4 GB
+#   3 workers       × ~7 GB = 21 GB
+#   Cilium + addons         =  3 GB
+#   Workload tests          =  4 GB
+#   ──────────────────────────────
+#   Total                   = 32 GB
+#
+# Cilium replaces kindnet (disableDefaultCNI: true) and kube-proxy
+# (kubeProxyMode: none) so we exercise the same dataplane as production.
+# =============================================================================
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: ngolacloud-dev
+
+networking:
+  # Cilium takes over both CNI and service load-balancing.
+  disableDefaultCNI: true
+  kubeProxyMode: none
+  podSubnet: "10.244.0.0/16"
+  serviceSubnet: "10.96.0.0/12"
+  # IPv4-only on the laptop; IPv6 is disabled in /etc/docker/daemon.json
+  # for the same reason — fewer moving parts.
+  ipFamily: ipv4
+
+nodes:
+  # ─── Control plane ──────────────────────────────────────────────────────
+  - role: control-plane
+    image: kindest/node:v1.32.0
+    # Expose the ingress-nginx ports on the host so the laptop can hit
+    # http://localhost without port-forwards.
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
+    kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        apiServer:
+          extraArgs:
+            enable-admission-plugins: NodeRestriction,ResourceQuota,LimitRanger
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+
+  # ─── Workers ─────────────────────────────────────────────────────────────
+  - role: worker
+    image: kindest/node:v1.32.0
+  - role: worker
+    image: kindest/node:v1.32.0
+  - role: worker
+    image: kindest/node:v1.32.0
