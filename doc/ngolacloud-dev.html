@@ -1,0 +1,976 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<title>ngolacloud-dev-setup — onboarding interactivo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --red:        #BE1622;
+    --red-dark:   #8a0f18;
+    --ink:        #0E0E10;
+    --text:       #1C1C1F;
+    --text-2:     #45454A;
+    --text-3:     #6E6E76;
+    --line:       #DCDCDE;
+    --paper:      #FFFFFF;
+    --paper-2:    #F7F7F8;
+    --ok:         #1f9d55;
+    --warn:       #c5860c;
+    --info:       #1565c0;
+    --mono:       "IBM Plex Mono", ui-monospace, monospace;
+    --display:    "Anton", "Impact", sans-serif;
+    --body:       "IBM Plex Sans", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: var(--body);
+    color: var(--text);
+    background: var(--paper-2);
+    line-height: 1.55;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+  }
+  /* ── Sidebar ──────────────────────────────────────── */
+  aside.toc {
+    background: var(--ink);
+    color: #ECECEE;
+    padding: 20px 18px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    border-right: 2px solid var(--red);
+  }
+  aside.toc::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 4px;
+    background: linear-gradient(90deg,
+      var(--red) 0, var(--red) 40%,
+      transparent 40%, transparent 50%,
+      var(--red) 50%, var(--red) 100%);
+  }
+  .brand {
+    font-family: var(--display);
+    font-size: 22px;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .brand .accent { color: var(--red); }
+  .tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    color: #98989F;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  .toc-group {
+    margin-bottom: 18px;
+  }
+  .toc-group__title {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #88888E;
+    margin-bottom: 6px;
+  }
+  .toc-link {
+    display: block;
+    padding: 4px 8px;
+    color: #C4C4C8;
+    text-decoration: none;
+    font-size: 13px;
+    border-left: 2px solid transparent;
+    margin-bottom: 1px;
+    transition: all 0.12s;
+  }
+  .toc-link:hover {
+    color: #ECECEE;
+    background: rgba(190,22,34,0.10);
+    border-left-color: var(--red);
+  }
+  .toc-link.is-active {
+    color: #ECECEE;
+    background: rgba(190,22,34,0.18);
+    border-left-color: var(--red);
+    font-weight: 600;
+  }
+  .toc-foot {
+    margin-top: 28px;
+    padding-top: 14px;
+    border-top: 1px solid #2A2A2F;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: #88888E;
+  }
+  /* ── Main ─────────────────────────────────────────── */
+  main {
+    padding: 36px 56px 96px;
+    max-width: 1100px;
+  }
+  h1 {
+    font-family: var(--display);
+    font-size: 34px;
+    letter-spacing: -0.4px;
+    color: var(--ink);
+    margin: 0 0 6px;
+    line-height: 1.05;
+  }
+  h1 .accent { color: var(--red); }
+  h2 {
+    font-family: var(--display);
+    font-size: 24px;
+    letter-spacing: -0.2px;
+    color: var(--ink);
+    margin: 48px 0 10px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+  h2:first-of-type { border-top: 0; padding-top: 0; }
+  h3 {
+    font-size: 17px;
+    margin: 24px 0 8px;
+    color: var(--ink);
+  }
+  .lead {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.4px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  p { margin: 8px 0 12px; }
+  a { color: var(--red); }
+  a:hover { color: var(--red-dark); text-decoration: underline; }
+  ul, ol { padding-left: 20px; }
+  li { margin: 4px 0; }
+  /* ── Code blocks ──────────────────────────────────── */
+  pre {
+    background: var(--ink);
+    color: #FAFAFA;
+    padding: 14px 16px 14px 18px;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.55;
+    position: relative;
+    margin: 12px 0;
+  }
+  pre code { color: inherit; background: transparent; padding: 0; }
+  code {
+    background: var(--paper-2);
+    color: var(--ink);
+    padding: 1px 5px;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 0.92em;
+    border: 1px solid var(--line);
+  }
+  pre code { border: 0; }
+  .copy-btn {
+    position: absolute;
+    top: 8px; right: 8px;
+    background: rgba(255,255,255,0.08);
+    color: #ECECEE;
+    border: 1px solid rgba(255,255,255,0.18);
+    padding: 3px 8px;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: background 0.12s;
+  }
+  .copy-btn:hover { background: rgba(190,22,34,0.4); }
+  .copy-btn.copied { background: var(--ok); border-color: var(--ok); }
+  /* ── Tier cards ───────────────────────────────────── */
+  .tier-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin: 20px 0;
+  }
+  .tier-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--red);
+    border-radius: 4px;
+    padding: 14px 16px;
+  }
+  .tier-card__num {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    color: var(--red);
+    text-transform: uppercase;
+  }
+  .tier-card__title {
+    font-weight: 600;
+    font-size: 14px;
+    margin: 4px 0 6px;
+  }
+  .tier-card__desc {
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  /* ── Tables ───────────────────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 12px 0;
+  }
+  thead th {
+    text-align: left;
+    padding: 9px 12px;
+    background: var(--paper-2);
+    border-bottom: 2px solid var(--line);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+  tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  tbody tr:hover { background: var(--paper-2); }
+  /* ── Pills / Badges ───────────────────────────────── */
+  .pill {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    padding: 1px 7px;
+    border-radius: 2px;
+    text-transform: uppercase;
+  }
+  .pill--ok   { background: rgba(31,157,85,0.10);  color: var(--ok); }
+  .pill--warn { background: rgba(197,134,12,0.10); color: var(--warn); }
+  .pill--info { background: rgba(21,101,192,0.10); color: var(--info); }
+  .pill--red  { background: rgba(190,22,34,0.10);  color: var(--red); }
+  /* ── Mermaid containers ───────────────────────────── */
+  .mermaid {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 14px;
+    margin: 16px 0;
+    text-align: center;
+  }
+  /* ── Callout box ──────────────────────────────────── */
+  .callout {
+    background: var(--paper);
+    border-left: 4px solid var(--info);
+    padding: 12px 16px;
+    margin: 14px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 13px;
+  }
+  .callout--warn { border-left-color: var(--warn); }
+  .callout--danger { border-left-color: var(--red); }
+  /* ── Smaller screens ──────────────────────────────── */
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    aside.toc { position: relative; height: auto; }
+    main { padding: 20px; }
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━ SIDEBAR ━━━━━━━━━━━━━━━━━━━━━━━━ -->
+  <aside class="toc">
+    <div class="brand">ngolacloud<span class="accent">-dev</span></div>
+    <div class="tag">Onboarding · v1.1.0</div>
+
+    <div class="toc-group">
+      <div class="toc-group__title">Começar</div>
+      <a class="toc-link" href="#overview">Visão geral</a>
+      <a class="toc-link" href="#quickstart">Quickstart (30 min)</a>
+      <a class="toc-link" href="#prereqs">Pré-requisitos</a>
+    </div>
+
+    <div class="toc-group">
+      <div class="toc-group__title">Arquitectura</div>
+      <a class="toc-link" href="#tiers">12 Tiers</a>
+      <a class="toc-link" href="#flow">Call graph</a>
+      <a class="toc-link" href="#ecosystem">Ecossistema</a>
+    </div>
+
+    <div class="toc-group">
+      <div class="toc-group__title">Operação</div>
+      <a class="toc-link" href="#daily">5 comandos diários</a>
+      <a class="toc-link" href="#workflows">Workflows</a>
+      <a class="toc-link" href="#security">Defence-in-depth</a>
+    </div>
+
+    <div class="toc-group">
+      <div class="toc-group__title">Integração</div>
+      <a class="toc-link" href="#integration-portal">Portal Django</a>
+      <a class="toc-link" href="#integration-cli">CLI Rust</a>
+      <a class="toc-link" href="#integration-prod">Produção</a>
+    </div>
+
+    <div class="toc-group">
+      <div class="toc-group__title">Boas práticas</div>
+      <a class="toc-link" href="#pr-workflow">PR + Gitflow</a>
+      <a class="toc-link" href="#semver">SemVer + commits</a>
+      <a class="toc-link" href="#solid">SOLID + CQRS</a>
+      <a class="toc-link" href="#12factor">12 Factor + SRE</a>
+    </div>
+
+    <div class="toc-group">
+      <div class="toc-group__title">Recursos</div>
+      <a class="toc-link" href="#troubleshooting">Troubleshooting</a>
+      <a class="toc-link" href="#help">Ajuda</a>
+    </div>
+
+    <div class="toc-foot">
+      build · 2026.5.19<br>
+      v1.1.0 · 11 ADRs<br>
+      112 ficheiros · 8.2 kLOC
+    </div>
+  </aside>
+
+  <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━ MAIN ━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+  <main>
+
+    <!-- ── Overview ─────────────────────────────────────────────── -->
+    <section id="overview">
+      <h1>ngolacloud-dev <span class="accent">· onboarding</span></h1>
+      <div class="lead">Workstation provisioning · Kind · Cilium · GitOps · SLSA L3 · 14 tiers</div>
+
+      <p>
+        Provisioning idempotente da workstation pessoal (Zorin 18 / Ubuntu 24.04,
+        ≥ 32 GB RAM) como ambiente de desenvolvimento NgolaCloud. Do clone ao
+        Grafana em ~15 minutos. Recriável e reversível.
+      </p>
+
+      <div class="tier-grid">
+        <div class="tier-card">
+          <div class="tier-card__num">14 tiers</div>
+          <div class="tier-card__title">Provisioning + ops + security</div>
+          <div class="tier-card__desc">Host tuning, Kind, Cilium, observability, Kyverno, Cosign, ESO, chaos, SLSA L3.</div>
+        </div>
+        <div class="tier-card">
+          <div class="tier-card__num">60+ make targets</div>
+          <div class="tier-card__title">Entry point único</div>
+          <div class="tier-card__desc">Tudo via <code>make</code>; flags por capability; meta-targets para batch.</div>
+        </div>
+        <div class="tier-card">
+          <div class="tier-card__num">8 Ansible roles</div>
+          <div class="tier-card__title">Configuração do host</div>
+          <div class="tier-card__desc">system_tuning, slice, Docker, kind tools, Rust, dev tools, KVM, WireGuard.</div>
+        </div>
+        <div class="tier-card">
+          <div class="tier-card__num">11 ADRs</div>
+          <div class="tier-card__title">Decisões documentadas</div>
+          <div class="tier-card__desc">Kind, Cilium, mold, slice, sops, Flux, security, supply chain, ESO.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Quickstart ───────────────────────────────────────────── -->
+    <section id="quickstart">
+      <h2>Quickstart — 30 minutos</h2>
+      <p>O caminho feliz para um novo dev. Cada comando é idempotente.</p>
+
+      <pre><code>git clone https://github.com/angolardevops/ngolacloud-dev-setup
+cd ngolacloud-dev-setup
+
+make validate                       # preflight (sem sudo, sem writes)
+make onboard                        # one-shot ~15 min
+make health                         # 8 ✓ esperados
+xdg-open http://localhost:3000      # Grafana — admin / ngolacloud-dev</code></pre>
+
+      <p>Para passo-a-passo manual:</p>
+
+      <pre><code>make setup-check                    # ansible dry-run
+make setup                          # apply ~10 min
+make reboot-if-needed
+make kind-up WITH_OBS=1              # cluster + Cilium + Grafana</code></pre>
+    </section>
+
+    <!-- ── Prereqs ──────────────────────────────────────────────── -->
+    <section id="prereqs">
+      <h2>Pré-requisitos</h2>
+      <table>
+        <thead>
+          <tr><th>Item</th><th>Mínimo</th><th>Verificar</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>OS</td><td>Zorin 18.x ou Ubuntu 24.04+ (codename noble)</td><td><code>cat /etc/os-release</code></td></tr>
+          <tr><td>Kernel</td><td>6.x com cgroup v2 unified</td><td><code>uname -r &amp;&amp; ls /sys/fs/cgroup/cgroup.controllers</code></td></tr>
+          <tr><td>CPU</td><td>≥ 8 cores</td><td><code>nproc</code></td></tr>
+          <tr><td>RAM</td><td>≥ 32 GB (64 GB recomendado)</td><td><code>free -h</code></td></tr>
+          <tr><td>Disco /</td><td>≥ 100 GB livres</td><td><code>df -h /</code></td></tr>
+          <tr><td>sudo</td><td>NOPASSWD (recomendado)</td><td><code>sudo -n true</code></td></tr>
+          <tr><td>ansible</td><td>≥ 2.16</td><td><code>ansible --version</code></td></tr>
+          <tr><td>BIOS virt</td><td>vmx/svm (opcional, p/ KVM nested)</td><td><code>grep -E 'vmx|svm' /proc/cpuinfo | head -1</code></td></tr>
+        </tbody>
+      </table>
+      <p><code>make validate</code> verifica tudo isto e devolve exit 0/1/2.</p>
+    </section>
+
+    <!-- ── Tiers ────────────────────────────────────────────────── -->
+    <section id="tiers">
+      <h2>Os 14 Tiers (camadas)</h2>
+      <p>Cada tier é opt-in e reversível. Tier 0-1 são obrigatórios; o resto é opcional.</p>
+
+      <div class="tier-grid">
+        <div class="tier-card">
+          <div class="tier-card__num">Tier 0-1 · INFRA</div>
+          <div class="tier-card__title">Host + Docker + slice</div>
+          <div class="tier-card__desc">sysctl, GRUB THP, udev, swap, ngolacloud-dev.slice (32 GB), Docker daemon.json.</div>
+        </div>
+        <div class="tier-card">
+          <div class="tier-card__num">Tier 2-3 · DEV LOOP</div>
+          <div class="tier-card__title">Kind + Cilium + Rust</div>
+          <div class="tier-card__desc">kind/kubectl/helm/k9s/stern + rustup + sccache + mold + direnv + fzf + rg + bat.</div>
+        </div>
+        <div class="tier-card">
+          <div class="tier-card__num">Tier 4 · QUALITY</div>
+          <div class="tier-card__title">Benchmark + docs</div>
+          <div class="tier-card__desc">Baseline performance, 3 ADRs iniciais, troubleshooting, divergence-from-prod.</div>
+        </div>
+        <div class="tier-card">
+          <div class="tier-card__num">Tier 5 · PLATFORM</div>
+          <div class="tier-card__title">Nested KVM staging</div>
+          <div class="tier-card__desc">libvirt + qemu + virt-install + cloud-init. Valida codepath prod localmente.</div>
+        </div>
+        <div class="tier-card">
+          <div class="tier-card__num">Tier 6 · GOVERNANCE</div>
+          <div class="tier-card__title">CI + WireGuard</div>
+          <div class="tier-card__desc">GitHub Actions lint workflow, validate-host preflight, LICENSE Apache 2.0.</div>
+        </div>
+        <div class="tier-card">
+          <div class="tier-card__num">Tier 7 · OPERATIONS</div>
+          <div class="tier-card__title">Obs + onboard + secrets</div>
+          <div class="tier-card__desc">Prom + Grafana + Loki, make onboard, sops + age + vault CLI, pre-commit.</div>
+        </div>
+        <div class="tier-card">
+          <div class="tier-card__num">Tier 8 · POLICY</div>
+          <div class="tier-card__title">Kyverno + DR + GitOps</div>
+          <div class="tier-card__desc">4 ClusterPolicies (PSS Baseline + Restricted), etcd snapshot/restore, Flux v2.</div>
+        </div>
+        <div class="tier-card">
+          <div class="tier-card__num">Tier 9 · SECURITY</div>
+          <div class="tier-card__title">Trivy + bench + Falco + cost</div>
+          <div class="tier-card__desc">Continuous CVE scan, CIS audit, runtime threat detection, opencost em AOA.</div>
+        </div>
+        <div class="tier-card">
+          <div class="tier-card__num">Tier 10 · SUPPLY CHAIN</div>
+          <div class="tier-card__title">Cosign + verifyImages</div>
+          <div class="tier-card__desc">Signed images via Cosign keyless (Sigstore), Kyverno admission gate. SLSA L2.</div>
+        </div>
+        <div class="tier-card">
+          <div class="tier-card__num">Tier 11 · RESILIENCE</div>
+          <div class="tier-card__title">ESO + chaos + SLSA L3</div>
+          <div class="tier-card__desc">External Secrets Operator, chaos-mesh, build provenance attestation.</div>
+        </div>
+        <div class="tier-card">
+          <div class="tier-card__num">Tier 12 · QUALITY</div>
+          <div class="tier-card__title">Tests + CI E2E + release</div>
+          <div class="tier-card__desc">Molecule (3 roles), smoke workflow, release automation, uninstall completo.</div>
+        </div>
+        <div class="tier-card">
+          <div class="tier-card__num">Tier 13-14 · DOCS</div>
+          <div class="tier-card__title">Integration + chart</div>
+          <div class="tier-card__desc">Portal/CLI integration docs, ecosystem map, reference Helm chart.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Flow ────────────────────────────────────────────────── -->
+    <section id="flow">
+      <h2>Call graph — o que <code>make onboard</code> faz</h2>
+      <div class="mermaid">
+graph TB
+    A[make onboard] --> B[validate-host.sh<br/>10 checks]
+    B --> C[make setup<br/>ansible playbook]
+    C --> C1[system_tuning]
+    C --> C2[resource_slicing]
+    C --> C3[docker_engine]
+    C --> C4[kind_tools]
+    C --> C5[rust_toolchain]
+    C --> C6[dev_tools]
+    C --> D{GRUB changed?}
+    D -->|yes| D1[reboot]
+    D -->|no| E
+    D1 --> E[kind-up --with-observability]
+    E --> E1[Kind cluster]
+    E --> E2[Helm Cilium]
+    E --> E3[Helm kube-prom]
+    E --> E4[Helm Loki]
+    E --> F[benchmark.sh]
+    F --> G[xdg-open http://localhost:3000]
+      </div>
+    </section>
+
+    <!-- ── Ecosystem ───────────────────────────────────────────── -->
+    <section id="ecosystem">
+      <h2>Ecossistema — onde este repo encaixa</h2>
+      <div class="mermaid">
+graph TB
+    subgraph "Workstation"
+        DS[ngolacloud-dev-setup]
+        CLI[ngolacloud-cli Rust]
+        PORTAL[ngolacloud-portal Django+React]
+    end
+    subgraph "Tenant VMs"
+        AGENT[ngolacloud-agent Rust]
+    end
+    subgraph "Customer"
+        SDK[ngolacloud-sdk Python]
+        STACKS[ngolacloud-stacks YAML]
+    end
+    subgraph "Production"
+        INFRA[ngolacloud-infra Ansible]
+    end
+    DS -.-> CLI
+    DS -.-> PORTAL
+    CLI --> PORTAL
+    CLI --> INFRA
+    INFRA --> PORTAL
+    PORTAL --> AGENT
+    SDK --> PORTAL
+    PORTAL --> STACKS
+      </div>
+      <p>
+        Este repo (<code>ngolacloud-dev-setup</code>) <strong>provisiona a
+        workstation</strong>. As <em>aplicações</em> (CLI, portal, agent, SDK)
+        vivem no monorepo sibling <code>ngolacloud-integration/</code> e
+        consomem o que este lab oferece (cluster, observability, secrets).
+      </p>
+    </section>
+
+    <!-- ── Daily ────────────────────────────────────────────────── -->
+    <section id="daily">
+      <h2>5 comandos diários</h2>
+      <table>
+        <thead><tr><th>Comando</th><th>Quando</th></tr></thead>
+        <tbody>
+          <tr><td><code>make kind-load TAG=ngolacloud/portal:dev</code></td><td>Após cada <code>docker build</code></td></tr>
+          <tr><td><code>kubectl -n ngolacloud rollout restart deploy/portal</code></td><td>Para o pod apanhar a nova imagem</td></tr>
+          <tr><td><code>make health</code></td><td>"O lab está bem?"</td></tr>
+          <tr><td><code>make security-report</code></td><td>Rollup semanal de findings</td></tr>
+          <tr><td><code>make kind-down &amp;&amp; make kind-up WITH_OBS=1</code></td><td>Reset nuclear</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── Workflows ─────────────────────────────────────────────── -->
+    <section id="workflows">
+      <h2>Workflows de Dia-2</h2>
+
+      <h3>Hot-reload (~12s save → pod restarted)</h3>
+      <pre><code># Em ngolacloud-portal/
+make portal-image                       # docker build
+
+# Em ngolacloud-dev-setup/
+make kind-load TAG=ngolacloud/portal:dev
+kubectl -n ngolacloud rollout restart deploy/portal
+stern -n ngolacloud portal              # tail logs</code></pre>
+
+      <h3>Antes de abrir um PR</h3>
+      <pre><code>make lint              # ansible-lint + shellcheck + yamllint
+make molecule-test     # roles com cobertura (system_tuning)
+make health            # sanidade final</code></pre>
+
+      <h3>Cortar uma release</h3>
+      <pre><code>$EDITOR CHANGELOG.md
+git add CHANGELOG.md
+git commit -m "release: v1.2.0"
+git push origin main
+git tag -a v1.2.0 -m "Tier X release"
+git push origin v1.2.0
+# release.yml dispara → SBOM + GitHub Release auto</code></pre>
+    </section>
+
+    <!-- ── Security ──────────────────────────────────────────────── -->
+    <section id="security">
+      <h2>Defence-in-depth — 4 camadas</h2>
+      <div class="mermaid">
+graph TB
+    L1[Layer 1 · Source<br/>pre-commit + sops/age + semantic commits]
+    L2[Layer 2 · Build CI<br/>Trivy scan + Cosign sign + SBOM]
+    L3[Layer 3 · Admission<br/>Kyverno PSS + verifyImages]
+    L4[Layer 4 · Runtime<br/>Falco + opencost + chaos-mesh]
+    L1 --> L2 --> L3 --> L4
+      </div>
+      <p>
+        Uma alteração que sobrevive aos 4 layers é segura para prod. Falha
+        num layer = sinal para investigar antes de continuar.
+      </p>
+    </section>
+
+    <!-- ── Integration · Portal ──────────────────────────────────── -->
+    <section id="integration-portal">
+      <h2>Integração com <code>ngolacloud-portal</code></h2>
+      <p>Workflow completo para deployar o portal Django+React contra este lab:</p>
+      <pre><code># 1. Cluster up
+cd ~/workspaces/delonix/ngolacloud-dev-setup
+make kind-up WITH_OBS=1
+
+# 2. Build o portal (no monorepo de aplicações)
+cd ~/workspaces/delonix/ngolacloud-lab/ngolacloud-integration/ngolacloud-portal
+docker build -t ngolacloud/portal:dev .
+
+# 3. Load + install
+cd ~/workspaces/delonix/ngolacloud-dev-setup
+make kind-load TAG=ngolacloud/portal:dev
+helm install portal-dev k8s/portal-chart \
+  --namespace ngolacloud --create-namespace \
+  --set image.tag=dev
+
+# 4. Seed demo
+POD=$(kubectl -n ngolacloud get pod -l app.kubernetes.io/name=ngolacloud-portal -o name | head -1)
+kubectl -n ngolacloud exec "$POD" -- python manage.py seed_demo</code></pre>
+
+      <p>Resultado: portal exposto em <code>http://localhost</code> via ingress-nginx, com 13 tenants + 8 containers de demo seedados.</p>
+    </section>
+
+    <!-- ── Integration · CLI ─────────────────────────────────────── -->
+    <section id="integration-cli">
+      <h2>Integração com <code>ngolacloud-cli</code> (Rust)</h2>
+      <pre><code>cd ~/workspaces/delonix/ngolacloud-lab/ngolacloud-integration/ngolacloud-cli
+cargo build --release         # ~75 s cold; ~3 s warm com sccache + mold
+
+# Aponta para o cluster Kind:
+./target/release/ngolacloud init --dev
+./target/release/ngolacloud platform status</code></pre>
+
+      <p>Killer feature do lab — validar <code>ngolacloud infra apply</code> end-to-end contra KVM nested antes de Hetzner:</p>
+      <pre><code>cd ~/workspaces/delonix/ngolacloud-dev-setup
+make setup TAGS=kvm                # uma vez: libvirt + qemu
+make staging-up                    # CLI cria 3 VMs locais via libvirt</code></pre>
+    </section>
+
+    <!-- ── Integration · Prod ────────────────────────────────────── -->
+    <section id="integration-prod">
+      <h2>Caminho até Produção</h2>
+      <div class="mermaid">
+graph LR
+    A[Kind dev] --> B[Nested KVM staging]
+    B --> C[Z440 staging]
+    C --> D[Hetzner/T5600 prod]
+    style A fill:#1f9d55,color:white
+    style B fill:#c5860c,color:white
+    style C fill:#1565c0,color:white
+    style D fill:#BE1622,color:white
+      </div>
+      <table>
+        <thead><tr><th>Tier de validação</th><th>O que se valida aqui</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill pill--ok">Kind dev</span></td><td>Helm charts, app logic, kubectl semantics, NetworkPolicy</td></tr>
+          <tr><td><span class="pill pill--warn">Nested KVM</span></td><td>kubeadm + libvirt + cloud-init + containerd codepath</td></tr>
+          <tr><td><span class="pill pill--info">Z440 staging</span></td><td>Real network/storage/VLAN, MetalLB, HA failover</td></tr>
+          <tr><td><span class="pill pill--red">Prod</span></td><td>Customer-facing</td></tr>
+        </tbody>
+      </table>
+      <p>Ver <a href="../docs/divergence-from-prod.md"><code>docs/divergence-from-prod.md</code></a> para os 20% que Kind <em>não</em> valida.</p>
+    </section>
+
+    <!-- ── PR workflow ───────────────────────────────────────────── -->
+    <section id="pr-workflow">
+      <h2>PR workflow + Gitflow</h2>
+      <p>Modelo: <strong>trunk-based + short-lived feature branches</strong>. Sem gitflow clássico (release/develop) — overhead desnecessário para esta equipa.</p>
+
+      <h3>Branch naming</h3>
+      <pre><code>feat/<topic>           # nova capability (T11.1)
+fix/<topic>            # bug fix
+chore/<topic>          # housekeeping
+docs/<topic>           # docs only
+refactor/<topic>       # no behaviour change
+ci/<topic>             # workflow changes</code></pre>
+
+      <h3>PR checklist (cada PR)</h3>
+      <ol>
+        <li>Branch criada com nome semântico</li>
+        <li>Commits seguem <em>Conventional Commits</em> (ver próxima secção)</li>
+        <li><code>make lint</code> passa localmente (pre-commit hook ajuda)</li>
+        <li><code>make health</code> verde antes do push</li>
+        <li>CHANGELOG.md actualizado se for user-facing</li>
+        <li>ADR escrito se a mudança tem implicação arquitectural</li>
+        <li>Tests adicionados ou actualizados</li>
+        <li>PR description: <strong>contexto / decisão / trade-offs</strong> (não apenas "what")</li>
+        <li>Review de pelo menos 1 outro engenheiro antes do merge</li>
+        <li>Squash + merge (mantém main linear)</li>
+      </ol>
+
+      <h3>Pre-commit local</h3>
+      <pre><code>pip install pre-commit
+pre-commit install            # corre em cada git commit
+pre-commit run --all-files    # corre agora contra todo o tree</code></pre>
+    </section>
+
+    <!-- ── SemVer ────────────────────────────────────────────────── -->
+    <section id="semver">
+      <h2>SemVer + Conventional Commits</h2>
+
+      <h3>Versionamento (SemVer 2.0)</h3>
+      <table>
+        <thead><tr><th>Bump</th><th>Quando</th></tr></thead>
+        <tbody>
+          <tr><td><code>MAJOR</code> (X.0.0)</td><td>Breaking change ao contrato <code>make setup</code> ou remoção de role/script</td></tr>
+          <tr><td><code>MINOR</code> (1.X.0)</td><td>Novo tier, nova role, novo make target</td></tr>
+          <tr><td><code>PATCH</code> (1.0.X)</td><td>Bug fix, doc, version pin bump</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Commit messages (Conventional Commits)</h3>
+      <pre><code>&lt;type&gt;(&lt;scope&gt;): &lt;subject&gt;     # imperative, &lt; 72 chars
+
+&lt;body&gt;                                  # context + decision + trade-offs
+
+&lt;footer&gt;                                # Co-Authored-By, Closes #N</code></pre>
+
+      <p>Types permitidos:</p>
+      <table>
+        <thead><tr><th>Type</th><th>Uso</th></tr></thead>
+        <tbody>
+          <tr><td><code>feat</code></td><td>Nova capability ou role</td></tr>
+          <tr><td><code>fix</code></td><td>Bug fix</td></tr>
+          <tr><td><code>docs</code></td><td>Só documentação</td></tr>
+          <tr><td><code>chore</code></td><td>Housekeeping, version bumps</td></tr>
+          <tr><td><code>refactor</code></td><td>Mudança de estrutura sem behaviour change</td></tr>
+          <tr><td><code>test</code></td><td>Apenas tests</td></tr>
+          <tr><td><code>ci</code></td><td>GitHub Actions, lint config</td></tr>
+          <tr><td><code>perf</code></td><td>Performance improvement</td></tr>
+        </tbody>
+      </table>
+
+      <p>Exemplos:</p>
+      <pre><code>feat(falco): add custom rule for netcat listener in workloads
+fix(kind-up): wait for Cilium pods before reporting Ready
+docs(adr): ADR-0011 lab/app boundary rationale
+ci(trivy): block PR on HIGH+ CVE in fs scan</code></pre>
+    </section>
+
+    <!-- ── SOLID ─────────────────────────────────────────────────── -->
+    <section id="solid">
+      <h2>SOLID + CQRS + Clean Arch</h2>
+      <p>Princípios aplicáveis quer no Python (portal), quer no Rust (CLI), quer nos Ansible roles:</p>
+
+      <h3>SOLID</h3>
+      <table>
+        <thead><tr><th>Princípio</th><th>Aplicação NgolaCloud</th></tr></thead>
+        <tbody>
+          <tr><td><strong>S</strong>ingle Responsibility</td><td>Cada Ansible role faz uma coisa. <code>system_tuning</code> não toca em Docker.</td></tr>
+          <tr><td><strong>O</strong>pen/Closed</td><td>Tiers são aditivos. Tier 11 não modifica Tier 9; estende.</td></tr>
+          <tr><td><strong>L</strong>iskov Substitution</td><td>O <code>portal-chart</code> reference é substituível pelo chart real do portal (mesmo contrato).</td></tr>
+          <tr><td><strong>I</strong>nterface Segregation</td><td>Scripts têm 1 propósito + flags claros. <code>kind-up.sh</code> não faz <code>kind-down</code>.</td></tr>
+          <tr><td><strong>D</strong>ependency Inversion</td><td>O CLI depende de <code>.ngolacloud.toml</code> (interface), não de Hetzner-specific code.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>CQRS — Command/Query Responsibility Segregation</h3>
+      <p>No portal Django: <strong>endpoints de leitura</strong> (GET /api/v1/admin/overview/) consultam um aggregator <em>read-only</em>; <strong>endpoints de escrita</strong> (POST /api/v1/instances/start/) publicam eventos que actualizam o estado. Não misturas READ + WRITE no mesmo serializer.</p>
+
+      <pre><code># Read side — apps/api/v1/admin_screens.py
+class AdminOverviewView(APIView):
+    def get(self, request):
+        return Response({"stats": aggregate_stats(), ...})
+
+# Write side — apps/instances/services.py
+class InstanceService:
+    def start(self, instance_id):
+        emit_event("instance.start.requested", instance_id)
+        return AcceptedResponse()  # 202, estado eventual</code></pre>
+
+      <h3>Clean Architecture — concentric layers</h3>
+      <ul>
+        <li><strong>Entities</strong> (models.py) — Tenant, Instance. Pure data + invariants.</li>
+        <li><strong>Use cases</strong> (services.py) — InstanceService.start(). Orquestra entities, não conhece HTTP.</li>
+        <li><strong>Adapters</strong> (views.py / serializers.py) — Traduz HTTP ↔ use cases.</li>
+        <li><strong>Frameworks</strong> (Django, DRF) — Detalhe externo. Substituível.</li>
+      </ul>
+      <p>Regra: dependências apontam <strong>para dentro</strong>. Entities não importam Django.</p>
+    </section>
+
+    <!-- ── 12Factor ─────────────────────────────────────────────── -->
+    <section id="12factor">
+      <h2>12 Factor App + SRE + Platform Engineering</h2>
+
+      <h3>Os 12 factores aplicados ao portal</h3>
+      <table>
+        <thead><tr><th>Factor</th><th>Aplicação</th></tr></thead>
+        <tbody>
+          <tr><td>I. Codebase</td><td>Um repo por app no monorepo <code>ngolacloud-integration/</code></td></tr>
+          <tr><td>II. Dependencies</td><td>Pinned em <code>pyproject.toml</code> + <code>Cargo.toml</code>; sem global packages</td></tr>
+          <tr><td>III. Config</td><td>Env vars via direnv local + ESO (Vault) em prod</td></tr>
+          <tr><td>IV. Backing services</td><td>Postgres, Redis, S3 como <em>attached resources</em> com URL na env</td></tr>
+          <tr><td>V. Build/release/run</td><td>Cosign signs build; release.yml cria release; rollout no cluster</td></tr>
+          <tr><td>VI. Processes</td><td>Stateless containers; estado em Postgres + MinIO</td></tr>
+          <tr><td>VII. Port binding</td><td>Cada app expõe HTTP no seu container port; ingress-nginx encaminha</td></tr>
+          <tr><td>VIII. Concurrency</td><td>HPA escala horizontalmente; gunicorn workers verticalmente</td></tr>
+          <tr><td>IX. Disposability</td><td>SIGTERM → graceful 30s; preStop hook para drenar tunnels</td></tr>
+          <tr><td>X. Dev/prod parity</td><td>Mesma Helm chart + Cilium + Kyverno em dev e prod (divergence-from-prod.md tem as excepções)</td></tr>
+          <tr><td>XI. Logs</td><td>stdout → Loki via Promtail; nunca a ficheiro</td></tr>
+          <tr><td>XII. Admin processes</td><td><code>kubectl exec ... python manage.py seed_demo</code> — one-off jobs</td></tr>
+        </tbody>
+      </table>
+
+      <h3>SRE essentials</h3>
+      <ul>
+        <li><strong>SLO/SLI</strong> — define target uptime (99.9% prod) e error budget (43min/mês). Mede via Prom.</li>
+        <li><strong>Runbooks</strong> — cada alerta tem um runbook URL. <code>docs/troubleshooting.md</code> + futuras runbooks/.</li>
+        <li><strong>Blameless postmortems</strong> — incidents geram um postmortem em docs/postmortems/YYYY-MM-DD-titulo.md.</li>
+        <li><strong>Chaos engineering</strong> — Tier 11 instala chaos-mesh; experimenta em staging primeiro.</li>
+        <li><strong>Capacity planning</strong> — opencost projecta custos; HPA + cluster-autoscaler em prod.</li>
+      </ul>
+
+      <h3>Platform Engineering — Internal Developer Platform</h3>
+      <p>O lab É um IDP minimalista. Cada feature corresponde a uma capacidade típica:</p>
+      <ul>
+        <li><strong>Self-service deployment</strong> → <code>make kind-load TAG=...</code> + Helm chart reference</li>
+        <li><strong>Golden paths</strong> → portal-chart + .envrc.template + onboard.sh</li>
+        <li><strong>Observability included</strong> → ServiceMonitor auto-discovered, Grafana pré-configurado</li>
+        <li><strong>Security guardrails</strong> → Kyverno enforced policies, Trivy continuous scan</li>
+        <li><strong>Cost transparency</strong> → opencost UI</li>
+      </ul>
+    </section>
+
+    <!-- ── Troubleshooting ───────────────────────────────────────── -->
+    <section id="troubleshooting">
+      <h2>Troubleshooting rápido</h2>
+
+      <div class="callout callout--warn">
+        <strong>"missing helm — run 'make setup' first"</strong><br>
+        Phase 3 do <code>onboard.sh</code> foi declinada. Corre <code>make setup TAGS=kind</code> (~2min) ou instala helm manual via curl.
+      </div>
+
+      <div class="callout callout--warn">
+        <strong>"cluster ngolacloud-dev already exists"</strong><br>
+        Cluster antigo presente. <code>make kind-up-recreate</code> destrói + cria com a config nova (perde dados em volumes), ou <code>make kind-down &amp;&amp; make kind-up</code>.
+      </div>
+
+      <div class="callout callout--danger">
+        <strong>Resource Slice not configured</strong><br>
+        <code>make setup TAGS=slice</code> resolve em ~5s. Necessário para que Docker respeite o limite de 32 GB.
+      </div>
+
+      <div class="callout">
+        <strong>Disco a &gt; 90%</strong><br>
+        <code>make prune</code> (safe) ou <code>make prune-aggressive</code> (também volumes). <code>make kind-down</code> liberta ~10-20 GB.
+      </div>
+
+      <div class="callout">
+        <strong>PATH_add: command not found</strong><br>
+        Estás a fazer <code>source .envrc</code> sem direnv. O ficheiro tem fallback shims na v1.1+; faz <code>git pull</code>.
+      </div>
+
+      <p>Lista completa em <a href="../docs/troubleshooting.md"><code>docs/troubleshooting.md</code></a>.</p>
+    </section>
+
+    <!-- ── Help ─────────────────────────────────────────────────── -->
+    <section id="help">
+      <h2>Ajuda + Referência</h2>
+      <ul>
+        <li><code>make help</code> — lista todos os targets</li>
+        <li><code>scripts/&lt;script&gt;.sh --help</code> — cada script documenta-se</li>
+        <li><a href="../docs/commands-reference.md">Commands reference</a></li>
+        <li><a href="../docs/file-structure.md">File structure</a></li>
+        <li><a href="../docs/ecosystem.md">Ecosystem map</a></li>
+        <li><a href="../docs/adr/">11 ADRs</a></li>
+        <li>GitHub: <code>angolardevops/ngolacloud-dev-setup</code></li>
+      </ul>
+
+      <div class="callout">
+        Última opção: <code>make uninstall &amp;&amp; rm -rf ~/workspaces/delonix/ngolacloud-dev-setup</code> + clone fresh. O lab está desenhado para reinstall ephemeral.
+      </div>
+
+      <p style="text-align: center; margin-top: 48px; color: var(--text-3); font-family: var(--mono); font-size: 11px; letter-spacing: 0.5px;">
+        🇦🇴 NGOLACLOUD-DEV-SETUP · APACHE 2.0 · v1.1.0
+      </p>
+    </section>
+
+  </main>
+</div>
+
+<!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━ SCRIPTS ━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  // Init mermaid with a NgolaCloud-coloured theme
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#BE1622',
+      primaryTextColor: '#FFFFFF',
+      primaryBorderColor: '#8a0f18',
+      lineColor: '#6E6E76',
+      secondaryColor: '#F7F7F8',
+      tertiaryColor: '#ECECEE',
+      background: '#FFFFFF',
+      fontFamily: 'IBM Plex Sans, sans-serif',
+    },
+  });
+
+  // ── Copy-to-clipboard on every <pre> block ─────────────────────
+  document.querySelectorAll('pre').forEach((pre) => {
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.textContent = 'Copy';
+    btn.addEventListener('click', async () => {
+      const text = pre.querySelector('code')?.textContent || pre.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = 'Copied ✓';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 1800);
+      } catch (e) {
+        btn.textContent = 'Failed';
+      }
+    });
+    pre.appendChild(btn);
+  });
+
+  // ── Active TOC link tracking via IntersectionObserver ──────────
+  const tocLinks = document.querySelectorAll('.toc-link');
+  const sections = document.querySelectorAll('main section[id]');
+  const linkBySection = new Map();
+  tocLinks.forEach((link) => {
+    const id = link.getAttribute('href').slice(1);
+    linkBySection.set(id, link);
+  });
+
+  const setActive = (id) => {
+    tocLinks.forEach((l) => l.classList.remove('is-active'));
+    const link = linkBySection.get(id);
+    if (link) link.classList.add('is-active');
+  };
+
+  const obs = new IntersectionObserver((entries) => {
+    // pick the topmost visible section
+    const visible = entries
+      .filter((e) => e.isIntersecting)
+      .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+    if (visible.length) setActive(visible[0].target.id);
+  }, { rootMargin: '-30% 0px -60% 0px' });
+  sections.forEach((s) => obs.observe(s));
+</script>
+</body>
+</html>
