@@ -22,6 +22,30 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-05-20  — Structured logs + progress UI via ansible callback
+
+### Added
+- **`ansible/callback_plugins/ngolacloud_stream.py`** — stdout callback
+  that emits `[NGC]<json>` lines for every play/role/task transition
+  while delegating to the bundled `default` callback so a human
+  running `ansible-playbook` directly still sees the normal banners.
+  Activated by `ANSIBLE_STDOUT_CALLBACK=ngolacloud_stream`. ADR-0015
+  walks through the event shape.
+- **`ansible/ansible.cfg` → `callback_plugins = callback_plugins`** so
+  the new plugin is on the search path without needing
+  `ANSIBLE_CALLBACK_PLUGINS` in the environment.
+
+### Integrates with
+- `ngolacloud-cli v0.2+`'s new `infra dev` progress UI — see
+  `ngolacloud-integration` commit log for the Rust side. The CLI
+  spawns ansible with the env-pinned callback, pipes stdout, and
+  drives one `indicatif` spinner per role plus a tabular report at
+  the end.
+- `cli_log` file appender (`tracing-appender`) which now writes every
+  helper event to `$XDG_STATE_HOME/ngolacloud/logs/ngolacloud-dev.log`
+  with weekly rotation (~50 MB target). `NGOLACLOUD_LOG_ENV=prod`
+  switches to daily rotation pending the Loki sink (Phase C2).
+
 ## [1.3.0] — 2026-05-20  — Slice budget defaults to 50% of host (RAM + CPU)
 
 ### Changed
