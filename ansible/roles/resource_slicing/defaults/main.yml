@@ -1,0 +1,44 @@
+---
+# =============================================================================
+# resource_slicing — default budget = 50% of host (RAM + CPU)
+# =============================================================================
+# Pre-v1.3.0 we pinned 32 GB / 28 GB / CPUWeight=75 in inventory.ini —
+# calibrated for the reference i9-13900H + 64 GB workstation. On a
+# different host (32 GB laptop, 128 GB workstation) the calibration was
+# wrong by a factor of 2-4×.
+#
+# Default policy now:
+#   - MemoryMax  =  50% of total RAM (hard cap, kernel OOM-kills inside slice)
+#   - MemoryHigh =  45% of total RAM (soft cap, kernel issues pressure first)
+#   - CPUQuota   =  50% of total CPU time (hard cap, summed across all cores)
+#   - CPUWeight  = 100 (equal share with other consumers — soft hint)
+#   - TasksMax   = 8192 (fork-bomb guard)
+#
+# Why 50%? The slice contains Docker + Kind. The other 50% is reserved
+# for the human's actual work: editor, browser, language servers,
+# native cargo/pnpm builds outside containers, plus headroom for the
+# OS (GNOME shell + indexers ≈ 4-6 GB on its own).
+#
+# Override any of these in `ansible/inventory.ini` under
+# [ngolacloud_dev:vars] when you want a different policy (e.g., a
+# dedicated lab machine where 70% is fine).
+# =============================================================================
+
+# Memory — derive from ansible_memtotal_mb (MB → GB → 50% / 45%).
+slice_memory_max_gb:  "{{ (ansible_memtotal_mb / 1024 * 0.50) | int }}"
+slice_memory_high_gb: "{{ (ansible_memtotal_mb / 1024 * 0.45) | int }}"
+
+# CPU — derive from ansible_processor_vcpus.
+#
+# systemd `CPUQuota=N%` is normalised: 100% = one full CPU. To express
+# "50% of TOTAL CPU time" on a 20-core box, we need 1000% (= 10 cores).
+# Formula: vcpus * 50.
+slice_cpu_quota_pct:  "{{ ansible_processor_vcpus * 50 }}"
+
+# CPUWeight — RELATIVE share under contention. 100 = equal weight with
+# other consumers. We don't downscale this because CPUQuota already
+# enforces the hard cap; CPUWeight is the policy under non-contention.
+slice_cpu_weight: 100
+
+# Tasks (PIDs) — fork-bomb guard. Same value pre/post-v1.3.0.
+slice_tasks_max: 8192

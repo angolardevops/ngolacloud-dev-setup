@@ -56,7 +56,26 @@ if systemctl show ngolacloud-dev.slice -p MemoryMax --value 2>/dev/null | grep -
   used_bytes=$(systemctl show ngolacloud-dev.slice -p MemoryCurrent --value 2>/dev/null)
   [[ "$used_bytes" =~ ^[0-9]+$ ]] || used_bytes=0
   used_gb=$(awk "BEGIN {printf \"%.1f\", $used_bytes/1024/1024/1024}")
-  row "Resource Slice" ok "${max_gb}G limit, ${used_gb}G used"
+  # Compute the slice's slice-of-host so the operator sees at a glance
+  # whether the 50% policy (v1.3.0+) was applied vs. the legacy 32G pin.
+  total_mb=$(awk '/^MemTotal:/ {print int($2/1024)}' /proc/meminfo)
+  pct=$(awk "BEGIN {printf \"%.0f\", $max_gb*1024 / $total_mb * 100}")
+  row "Resource Slice" ok "${max_gb}G limit (${pct}% of host), ${used_gb}G used"
+
+  # CPUQuota — v1.3.0+ adds a hard cap. Print it if set, omit otherwise
+  # (older runs of the playbook only configured CPUWeight).
+  cpu_quota=$(systemctl show ngolacloud-dev.slice -p CPUQuotaPerSecUSec --value 2>/dev/null)
+  if [[ -n "$cpu_quota" && "$cpu_quota" != "infinity" ]]; then
+    # CPUQuotaPerSecUSec returns microseconds-per-second; convert to
+    # a percent-of-one-CPU number that matches the systemd unit syntax.
+    quota_us=$(echo "$cpu_quota" | sed 's/ms$/000/; s/us$//; s/s$/000000/')
+    nproc_val=$(nproc 2>/dev/null || echo 0)
+    if [[ "$quota_us" =~ ^[0-9]+$ && "$nproc_val" -gt 0 ]]; then
+      pct_one=$(awk "BEGIN {printf \"%.0f\", $quota_us/10000}")
+      pct_host=$(awk "BEGIN {printf \"%.0f\", $quota_us/10000/$nproc_val}")
+      row "Slice CPU Quota" ok "${pct_one}% of one CPU (${pct_host}% of host)"
+    fi
+  fi
 else
   row "Resource Slice" fail "ngolacloud-dev.slice not configured"
 fi

@@ -29,8 +29,13 @@
       # Soft warning — pressure-stall triggers before the hard cap, so
       # workloads have time to release memory cleanly.
       MemoryHigh={{ slice_memory_high_gb }}G
-      # CPU: 75/100 weight = ~75% of cores under contention; idle weight
-      # has no effect when nobody else is competing.
+      # Hard CPU cap. systemd CPUQuota=N% means "N% of one CPU"; for
+      # "50% of total CPU time" we set vcpus*50 (e.g. 1000% on 20 cores
+      # = 10 cores worth of CPU time = 50% of total).
+      CPUQuota={{ slice_cpu_quota_pct }}%
+      # Relative share under contention with other slices. 100 = equal
+      # weight. CPUQuota above enforces the hard cap; this just picks
+      # the policy when several consumers compete inside the budget.
       CPUWeight={{ slice_cpu_weight }}
       # I/O: default weight (no preferential treatment).
       IOWeight=100

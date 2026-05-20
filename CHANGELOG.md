@@ -22,6 +22,52 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-05-20  — Slice budget defaults to 50% of host (RAM + CPU)
+
+### Changed
+
+- **`resource_slicing` role no longer hard-pins 32 GB / 28 GB /
+  CPUWeight=75 in `inventory.ini`.** Defaults are now derived from
+  host facts in `roles/resource_slicing/defaults/main.yml`:
+    * `MemoryMax  = ansible_memtotal_mb × 0.50` (50% of total RAM)
+    * `MemoryHigh = ansible_memtotal_mb × 0.45` (45%, soft pressure)
+    * `CPUQuota   = ansible_processor_vcpus × 50` (50% of total CPU)
+    * `CPUWeight  = 100` (equal share — soft hint)
+  On the reference 64 GB / 14-vcpu i9-13900H host: `MemMax=31G
+  MemHigh=28G CPUQuota=700%`. On a 32 GB laptop: `MemMax=15G
+  MemHigh=14G CPUQuota=400%`. On a 128 GB workstation:
+  `MemMax=63G MemHigh=57G CPUQuota=1400%`. **Linear scaling — no
+  re-calibration needed per host.**
+
+- **`inventory.ini`** keeps the pre-v1.3.0 values as commented opt-in
+  overrides. Uncomment to force a fixed budget (e.g., a lab-only box
+  where 70% of the host is fine).
+
+### Added
+
+- **`CPUQuota` on the slice** (was only `CPUWeight` before). Hard cap
+  prevents Docker from burning 100% CPU during heavy Rust/Go builds
+  even when nothing else is competing. With v1.2.x, a `cargo build`
+  inside the slice could starve the host's editor / browser even
+  though `CPUWeight=75` was set (CPUWeight only matters under
+  contention — it doesn't cap idle usage).
+
+- **`make health` shows `(N% of host)` next to the slice memory cap**
+  and a new "Slice CPU Quota" row with both
+  `(percent-of-one-CPU)` and `(percent-of-host)` values. Lets the
+  operator confirm the 50% policy is actually in effect, especially
+  after `make setup` on a non-reference host.
+
+### Migration notes
+
+- Re-run `make setup` (or `ngolacloud infra dev`) to regenerate
+  `/etc/systemd/system/ngolacloud-dev.slice` with the new defaults.
+  Existing slice files are overwritten cleanly (idempotent task).
+- Hosts running the v1.2.x slice (32 GB pin on a 64 GB box → 50%)
+  will see the value drop from "32G" to "31G" after re-apply on
+  hosts with exactly 64 GB; the 1-GB difference is `ansible_memtotal_mb`
+  rounding (1 GB system reserved for kernel buffers etc.).
+
 ## [1.2.9] — 2026-05-20  — Patch: sops download URL pinned + versioned
 
 ### Fixed
