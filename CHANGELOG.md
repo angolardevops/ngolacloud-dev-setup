@@ -22,6 +22,34 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-05-19  — Tier 14 (lab→app boundary + role test coverage)
+
+### Added
+- **`k8s/portal-chart/`** — reference Helm chart for any NgolaCloud app
+  deploying to the dev cluster. 7 templates (Deployment, Service,
+  Ingress, HPA, ServiceMonitor, ExternalSecret, _helpers.tpl).
+  Default values satisfy:
+    * Kyverno PSS Baseline (no privileged, drop ALL caps)
+    * Kyverno PSS Restricted (runAsNonRoot, runAsUser=1000)
+    * `require-resource-limits` (CPU + memory)
+    * kube-prom-stack auto-discovery (ServiceMonitor)
+    * ESO sync from Vault (optional, off by default)
+  README explains when to fork into the app repo.
+- **Molecule scenarios for two more roles**:
+    * `ansible/roles/resource_slicing/molecule/` — 9 testinfra
+      assertions (slice file content, docker drop-in, MemoryMax via
+      systemctl show)
+    * `ansible/roles/docker_engine/molecule/` — 12 testinfra assertions
+      (apt repo + GPG key, daemon.json structure, slice drop-in,
+      Snap Docker pre-flight rejection, 5 required packages)
+- ADR-0011: Lab/app boundary + Molecule role coverage pattern.
+
+### Coverage
+- Molecule: 3 of 8 roles now have regression coverage
+  (system_tuning, resource_slicing, docker_engine).
+- Remaining 5 (kind_tools, rust_toolchain, dev_tools, kvm_host,
+  wireguard) queued for follow-up PRs — pattern documented.
+
 ## [1.0.0] — 2026-05-19  — Tier 12 (consolidation: tests, CI E2E, release automation)
 
 This is the **stabilization release** marking the lab as feature-complete.

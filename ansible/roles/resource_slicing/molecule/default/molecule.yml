@@ -1,0 +1,45 @@
+---
+# =============================================================================
+# molecule/default/molecule.yml — resource_slicing role test scenario
+# =============================================================================
+# Privileged systemd-init container. The role writes:
+#   1. /etc/systemd/system/ngolacloud-dev.slice
+#   2. /etc/systemd/system/docker.service.d/slice.conf
+# We verify both files exist with the expected content + the slice has
+# the configured MemoryMax via `systemctl show`.
+#
+# Caveat: docker.service may not exist in the container; the verify step
+# checks the file content rather than the running unit's Slice property.
+# =============================================================================
+driver:
+  name: docker
+
+platforms:
+  - name: noble-slice
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    pre_build_image: true
+    privileged: true
+    command: /lib/systemd/systemd
+    cgroupns_mode: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+    capabilities:
+      - SYS_ADMIN
+      - NET_ADMIN
+
+provisioner:
+  name: ansible
+  inventory:
+    group_vars:
+      all:
+        slice_memory_max_gb: 32
+        slice_memory_high_gb: 28
+        slice_cpu_weight: 75
+        slice_tasks_max: 8192
+
+verifier:
+  name: testinfra
+  directory: tests

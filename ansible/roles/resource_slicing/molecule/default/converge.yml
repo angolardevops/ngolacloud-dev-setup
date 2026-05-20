@@ -1,0 +1,16 @@
+---
+- name: Converge resource_slicing
+  hosts: all
+  become: true
+  gather_facts: true
+  pre_tasks:
+    # Container needs /etc/systemd/system/docker.service.d/ to exist before
+    # the role drops slice.conf there. The real workstation gets it
+    # auto-created by the docker-ce apt package.
+    - name: Container prep — create docker.service.d
+      ansible.builtin.file:
+        path: /etc/systemd/system/docker.service.d
+        state: directory
+        mode: '0755'
+  roles:
+    - role: resource_slicing

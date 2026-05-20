@@ -1,0 +1,21 @@
+{{- if .Values.serviceMonitor.enabled -}}
+{{- /*
+   kube-prometheus-stack from Tier 7 watches ServiceMonitors in any
+   namespace (`serviceMonitorSelector: {}`). Auto-discovered metrics
+   land in Grafana within the next scrape interval.
+*/}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "portal.fullname" . }}
+  labels:
+    {{- include "portal.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "portal.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: {{ .Values.serviceMonitor.port }}
+      interval: {{ .Values.serviceMonitor.interval }}
+      path: {{ .Values.serviceMonitor.path }}
+{{- end -}}

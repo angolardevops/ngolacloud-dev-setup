@@ -1,0 +1,117 @@
+# =============================================================================
+# values.yaml — defaults for the reference Helm chart
+# =============================================================================
+# This chart is the GENERIC SKELETON every NgolaCloud app inherits from. The
+# real ngolacloud-portal repo overrides these in its own production chart;
+# the dev cluster uses the defaults below for the canary deployment that
+# `make kind-load TAG=ngolacloud/portal:dev` ships.
+# =============================================================================
+
+# ── Image ─────────────────────────────────────────────────────────────────
+image:
+  repository: ngolacloud/portal
+  tag: dev                         # overridden by --set image.tag=...
+  pullPolicy: IfNotPresent
+
+# ── Replicas + rollout ────────────────────────────────────────────────────
+replicaCount: 1
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# ── Resources (must declare both — Kyverno require-resource-limits) ──────
+resources:
+  requests:
+    cpu: "50m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+# ── Security context (must pass Kyverno PSS Baseline + Restricted) ────────
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  privileged: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: [ALL]
+
+# ── HPA ───────────────────────────────────────────────────────────────────
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# ── Service + Ingress ─────────────────────────────────────────────────────
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: portal.ngolacloud.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# ── Health probes ─────────────────────────────────────────────────────────
+probes:
+  liveness:
+    httpGet:
+      path: /healthz
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  readiness:
+    httpGet:
+      path: /readyz
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+# ── Observability — ServiceMonitor for kube-prom-stack ───────────────────
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  path: /metrics
+  port: http
+
+# ── Environment variables (extend per-app via --set env=...) ─────────────
+env: []
+#   - name: DATABASE_URL
+#     valueFrom:
+#       secretKeyRef:
+#         name: portal-db-credentials      # provided by ESO (Tier 11)
+#         key: db-password
+
+# ── Secrets via ExternalSecrets Operator ─────────────────────────────────
+# When ESO is installed (`make eso-with-vault`), uncomment + customise.
+externalSecrets:
+  enabled: false
+  vault:
+    secretStore: vault-dev               # ClusterSecretStore name
+    secrets:
+      - target: portal-db-credentials
+        data:
+          - secretKey: db-username
+            remoteKey: portal/db
+            property: username
+          - secretKey: db-password
+            remoteKey: portal/db
+            property: password

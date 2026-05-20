@@ -1,0 +1,74 @@
+---
+# =============================================================================
+# molecule/default/molecule.yml — docker_engine role test scenario
+# =============================================================================
+# Tricky: testing a role that installs Docker INSIDE a container.
+# Strategy:
+#   • Use Geerling's docker-ubuntu2404-ansible image (has systemd)
+#   • Skip the "Verify — docker info reports systemd cgroup driver" step
+#     (post-condition checks) because docker.service inside docker is
+#     fragile under most Docker-in-Docker configurations
+#   • Verify the FILES the role wrote (daemon.json, drop-in) and that
+#     the apt repo + GPG key are in place
+#
+# CI runs this scenario as part of `make molecule-test ROLE=docker_engine`
+# (Tier 12 — the smoke workflow exercises the real apt install path on
+# a vanilla GHA runner where docker.service actually starts).
+# =============================================================================
+driver:
+  name: docker
+
+platforms:
+  - name: noble-docker
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    pre_build_image: true
+    privileged: true
+    command: /lib/systemd/systemd
+    cgroupns_mode: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+    capabilities:
+      - SYS_ADMIN
+      - NET_ADMIN
+
+provisioner:
+  name: ansible
+  inventory:
+    group_vars:
+      all:
+        # Pin to the same version the real workstation will install. If
+        # the apt repo doesn't have this exact version, the install task
+        # will fail loudly — that's by design (catches version drift).
+        docker_version_pin: "5:29.5.0-1~ubuntu.24.04~noble"
+        docker_address_pool_base: "172.30.0.0/16"
+        docker_address_pool_size: 24
+        # Slice vars are unused here (the slice itself comes from
+        # resource_slicing), but the docker_engine role's drop-in
+        # references the slice unit name. Pre-create a stub so the
+        # post-condition assertion `Slice=ngolacloud-dev.slice` succeeds.
+        slice_memory_max_gb: 32
+  config_options:
+    defaults:
+      stdout_callback: yaml
+
+verifier:
+  name: testinfra
+  directory: tests
+
+# Skip idempotence: the apt-key fetch happens unconditionally on first
+# run; the second run is identical AT THE FILE level but `apt update`
+# always reports "Updated" — molecule's idempotence check is too strict.
+scenario:
+  name: default
+  test_sequence:
+    - destroy
+    - dependency
+    - syntax
+    - create
+    - prepare
+    - converge
+    - verify
+    - destroy

@@ -1,0 +1,17 @@
+apiVersion: v2
+name: ngolacloud-portal
+description: >-
+  Reference Helm chart for any NgolaCloud app deploying to the dev cluster.
+  Demonstrates the lab→app boundary: this chart is GENERIC scaffolding;
+  the actual ngolacloud-portal repo ships its own production chart with
+  application-specific values.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/angolardevops/ngolacloud-dev-setup
+sources:
+  - https://github.com/angolardevops/ngolacloud-dev-setup
+keywords: [ngolacloud, lab, template]
+maintainers:
+  - name: NgolaCloud
+    email: dev@ngolacloud.ao
