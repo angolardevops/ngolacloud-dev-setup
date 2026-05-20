@@ -1,0 +1,71 @@
+// =============================================================================
+// .devcontainer/devcontainer.json — VS Code / Codespaces ready
+// =============================================================================
+// Opens this repo in a containerised editor with:
+//   • ansible-core + ansible-lint + yamllint + shellcheck pre-installed
+//   • The full Makefile available (`make lint`, `make validate-check`)
+//   • Recommended VS Code extensions for Ansible, YAML, shell, markdown
+//
+// NOTE: This devcontainer can ONLY lint the playbook + run --check.
+// Actually applying it (`make setup`) needs the host's systemd + sudo and
+// MUST be run on the workstation directly, not inside a container.
+// =============================================================================
+{
+  "name": "ngolacloud-dev-setup",
+
+  // Plain Ubuntu 24.04 — matches what the playbook targets.
+  "image": "mcr.microsoft.com/devcontainers/base:noble",
+
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.12",
+      "installTools": false
+    },
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": false,
+      "username": "vscode",
+      "upgradePackages": true
+    }
+  },
+
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "redhat.ansible",
+        "redhat.vscode-yaml",
+        "timonwong.shellcheck",
+        "ms-azuretools.vscode-docker",
+        "DavidAnson.vscode-markdownlint",
+        "tamasfe.even-better-toml",
+        "ms-python.python"
+      ],
+      "settings": {
+        "files.associations": {
+          "*.yml.j2": "jinja-yaml",
+          "*.j2": "jinja",
+          "Makefile": "makefile",
+          "*.toml": "toml",
+          ".envrc.template": "shellscript"
+        },
+        "ansible.python.interpreterPath": "/usr/bin/python3",
+        "yaml.customTags": [
+          "!vault scalar",
+          "!Ref",
+          "!Sub"
+        ]
+      }
+    }
+  },
+
+  // We don't run docker-in-docker; the user is expected to use this only for
+  // editing + linting. `make setup` runs on the host.
+  "runArgs": ["--init"],
+
+  // Forwarded ports — mostly Grafana (3000) if someone tunnels in.
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "Grafana (host kind cluster)", "onAutoForward": "ignore" }
+  }
+}

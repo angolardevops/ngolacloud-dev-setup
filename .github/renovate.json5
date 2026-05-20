@@ -1,0 +1,91 @@
+// =============================================================================
+// .github/renovate.json5 — Mend Renovate config for version bumps
+// =============================================================================
+// Renovate watches the version pins in inventory.ini, Ansible roles, kind
+// configs, and Helm chart references; opens PRs when upstream releases new
+// patch/minor versions. Grouped + scheduled to keep the PR queue light.
+// =============================================================================
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  extends: [
+    "config:recommended",
+    ":semanticCommits",
+    ":dependencyDashboard",
+  ],
+
+  // Run Sunday early morning UTC — keeps the weekly review predictable.
+  schedule: ["before 06:00 on Sunday"],
+  timezone: "Africa/Luanda",
+
+  // Don't PR major bumps automatically — they need an ADR.
+  major: { enabled: false },
+
+  // Group related bumps so the operator gets ONE PR per concern.
+  packageRules: [
+    {
+      matchPackagePatterns: ["kind", "kubectl", "helm", "kustomize", "k9s", "stern"],
+      groupName: "k8s tooling",
+    },
+    {
+      matchPackagePatterns: ["kyverno", "cilium", "flux"],
+      groupName: "cluster controllers",
+    },
+    {
+      matchPackagePatterns: ["sccache", "mold", "rustup"],
+      groupName: "rust toolchain",
+    },
+  ],
+
+  // Custom managers — parse pinned versions in non-standard files.
+  customManagers: [
+    {
+      // Versions in ansible/inventory.ini
+      //   docker_version_pin       = 5:29.5.0-1~ubuntu.24.04~noble
+      //   kind_version             = 0.30.0
+      //   kubectl_version          = 1.34.1
+      customType: "regex",
+      fileMatch: ["^ansible/inventory.ini$"],
+      matchStrings: [
+        "kind_version\\s*=\\s*(?<currentValue>[0-9.]+)",
+      ],
+      depNameTemplate: "kubernetes-sigs/kind",
+      datasourceTemplate: "github-releases",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["^ansible/inventory.ini$"],
+      matchStrings: [
+        "kubectl_version\\s*=\\s*(?<currentValue>[0-9.]+)",
+      ],
+      depNameTemplate: "kubernetes/kubernetes",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v(?<version>.+)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["^ansible/inventory.ini$"],
+      matchStrings: [
+        "helm_version\\s*=\\s*(?<currentValue>[0-9.]+)",
+      ],
+      depNameTemplate: "helm/helm",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v(?<version>.+)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["^scripts/.*\\.sh$"],
+      matchStrings: [
+        "KYVERNO_VERSION:?-?\"?(?<currentValue>[0-9.]+)",
+        "CILIUM_VERSION:?-?\"?(?<currentValue>[0-9.]+)",
+        "FLUX_VERSION:?-?\"?(?<currentValue>[0-9.]+)",
+      ],
+      depNameTemplate: "{{lookup}}",
+      datasourceTemplate: "github-releases",
+    },
+  ],
+
+  // Don't spam the PR queue — cap at 5 concurrent open PRs.
+  prConcurrentLimit: 5,
+  prHourlyLimit: 2,
+}

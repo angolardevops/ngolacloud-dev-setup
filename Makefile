@@ -34,10 +34,13 @@ endif
 .PHONY: help setup setup-check setup-diff health reboot-if-needed \
         prune prune-aggressive uninstall \
         kind-up kind-up-recreate kind-down kind-down-deep kind-reset kind-load \
-        bench version validate \
+        bench version validate onboard onboard-yes \
         lint lint-ansible lint-shell lint-yaml \
         staging-up staging-down \
-        wireguard-up
+        wireguard-up \
+        kyverno-install kyverno-enforce kyverno-uninstall \
+        dr-snapshot dr-restore dr-drill \
+        flux-install flux-install-sample flux-uninstall
 
 .DEFAULT_GOAL := help
 
@@ -145,6 +148,36 @@ staging-down: ## (placeholder) Tear down the nested KVM staging cluster
 # ──────────────────────────────────────────────────────────────────────────
 wireguard-up: ## Install + start WireGuard tunnel (configure via inventory.ini)
 	cd $(ANSIBLE_DIR) && ansible-playbook setup.yml $(ANSIBLE_FLAGS) --tags wireguard
+
+# ──────────────────────────────────────────────────────────────────────────
+# Tier 8 — GitOps / policies / DR
+# ──────────────────────────────────────────────────────────────────────────
+kyverno-install: ## Install Kyverno + apply baseline policies in Audit mode
+	@scripts/kyverno-install.sh
+
+kyverno-enforce: ## Flip all ClusterPolicies from Audit to Enforce
+	@scripts/kyverno-install.sh --enforce
+
+kyverno-uninstall: ## Remove Kyverno + all policies
+	@scripts/kyverno-install.sh --uninstall
+
+dr-snapshot: ## Take an etcd snapshot to /tmp/ngc-dr/
+	@scripts/dr-drill.sh snapshot
+
+dr-restore: ## Restore from snapshot. Usage: make dr-restore FILE=/tmp/ngc-dr/etcd-...db
+	@scripts/dr-drill.sh restore $(FILE)
+
+dr-drill: ## Full DR drill: snapshot + sandbox + chaos + restore + verify
+	@scripts/dr-drill.sh full
+
+flux-install: ## Install Flux controllers (bare — no sample reconciler)
+	@scripts/flux-install.sh --bare
+
+flux-install-sample: ## Install Flux + apply sample GitRepository/Kustomization
+	@scripts/flux-install.sh --sample
+
+flux-uninstall: ## Remove Flux entirely
+	@scripts/flux-install.sh --uninstall
 
 uninstall: ## Revert as much as possible (slice + sysctl override + daemon.json)
 	@printf "$(RED)── uninstall ──$(NC)\n"

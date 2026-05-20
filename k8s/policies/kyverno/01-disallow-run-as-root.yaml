@@ -1,0 +1,48 @@
+---
+# =============================================================================
+# kyverno/01-disallow-run-as-root.yaml — PSS Restricted
+# =============================================================================
+# Containers should run as a non-root user (UID > 0). Mirrors the
+# `runAsNonRoot: true` field but also catches `runAsUser: 0` overrides.
+#
+# Severity: MEDIUM
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-run-as-root
+  annotations:
+    policies.kyverno.io/title: Disallow runAsRoot
+    policies.kyverno.io/category: Pod Security Standards (Restricted)
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: require-non-root
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - cilium-system
+                - observability    # node-exporter needs root for /proc
+      validate:
+        message: >-
+          Containers must run as non-root.
+          Set securityContext.runAsNonRoot=true (and runAsUser > 0).
+        anyPattern:
+          # Pattern A: pod-level securityContext sets runAsNonRoot=true
+          - spec:
+              securityContext:
+                runAsNonRoot: "true"
+          # Pattern B: every container sets it explicitly
+          - spec:
+              containers:
+                - securityContext:
+                    runAsNonRoot: "true"

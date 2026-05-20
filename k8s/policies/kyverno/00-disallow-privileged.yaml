@@ -1,0 +1,51 @@
+---
+# =============================================================================
+# kyverno/00-disallow-privileged.yaml — Pod Security Standards · Baseline
+# =============================================================================
+# Privileged containers can escape the container boundary; PSS Baseline
+# explicitly forbids them. Audit mode for the first month, then enforce.
+#
+# Severity: HIGH
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-privileged-containers
+  annotations:
+    policies.kyverno.io/title: Disallow Privileged Containers
+    policies.kyverno.io/category: Pod Security Standards (Baseline)
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Privileged containers have *root capabilities on the host*. A pod
+      that escapes the container boundary owns the worker node. Disallow
+      them at admission; the very rare exception (Cilium agent, debugging)
+      can be allowed via a per-namespace label override later.
+spec:
+  validationFailureAction: Audit       # flip to Enforce once the baseline is clean
+  background: true
+  rules:
+    - name: privileged-containers
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      # Exempt the system namespaces — Cilium agent needs privileged.
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - cilium-system
+      validate:
+        message: >-
+          Privileged containers are not allowed. Set
+          spec.containers[*].securityContext.privileged=false.
+        pattern:
+          spec:
+            =(initContainers):
+              - =(securityContext):
+                  =(privileged): "false"
+            containers:
+              - =(securityContext):
+                  =(privileged): "false"

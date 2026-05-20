@@ -1,0 +1,48 @@
+---
+# =============================================================================
+# kyverno/02-require-resource-limits.yaml — Capacity hygiene
+# =============================================================================
+# Pods without CPU/memory limits can starve the host. On a laptop with a
+# 32 GB slice cap this is the #1 cause of "why did GNOME die".
+#
+# Requests are advisory; LIMITS are enforced by the kernel.
+#
+# Severity: HIGH (laptop-specific)
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resource-limits
+  annotations:
+    policies.kyverno.io/title: Require CPU + Memory Limits
+    policies.kyverno.io/category: Capacity hygiene
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: require-limits
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - cilium-system
+                - kube-public
+                - kube-node-lease
+      validate:
+        message: >-
+          Every container must declare CPU and memory limits
+          (resources.limits.cpu + resources.limits.memory).
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  limits:
+                    cpu: "?*"
+                    memory: "?*"

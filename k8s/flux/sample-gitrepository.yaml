@@ -1,0 +1,22 @@
+---
+# =============================================================================
+# k8s/flux/sample-gitrepository.yaml — sample GitRepository for demo
+# =============================================================================
+# Points Flux at this very repo so the operator can see end-to-end Flux
+# reconciliation without provisioning a separate remote. For production
+# replace the URL with the actual cluster-state repo and remove this file.
+# =============================================================================
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: ngolacloud-dev-setup
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: https://github.com/angolardevops/ngolacloud-dev-setup
+  ref:
+    branch: main
+  # No secret yet — anon clone over HTTPS works for public repos. For
+  # private repos add `secretRef: {name: <Secret-with-bearerToken>}` and
+  # create that Secret separately (`kubectl create secret generic …`).
+  timeout: 30s

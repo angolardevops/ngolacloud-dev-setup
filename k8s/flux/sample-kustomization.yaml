@@ -1,0 +1,35 @@
+---
+# =============================================================================
+# k8s/flux/sample-kustomization.yaml — sample Kustomization for demo
+# =============================================================================
+# Tells Flux to apply k8s/policies/kyverno/ from the sample GitRepository
+# every 5 minutes. Mirrors what `make kind-up` does manually, but now
+# declarative: change the kyverno manifest in git, Flux picks it up.
+#
+# For production this would point at the cluster-state monorepo's
+# `clusters/<env>/` directory.
+# =============================================================================
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: kyverno-policies
+  namespace: flux-system
+spec:
+  interval: 5m
+  retryInterval: 1m
+  timeout: 3m
+  path: ./k8s/policies/kyverno
+  prune: true                # remove resources dropped from git
+  wait: true
+  sourceRef:
+    kind: GitRepository
+    name: ngolacloud-dev-setup
+  # Health checks so `flux get kustomizations` reports failure visibly
+  # if a policy doesn't reconcile.
+  healthChecks:
+    - apiVersion: kyverno.io/v1
+      kind: ClusterPolicy
+      name: disallow-privileged-containers
+    - apiVersion: kyverno.io/v1
+      kind: ClusterPolicy
+      name: disallow-run-as-root

@@ -1,0 +1,49 @@
+---
+# =============================================================================
+# kyverno/03-require-image-tag-not-latest.yaml — Reproducibility
+# =============================================================================
+# `:latest` tags break reproducibility: yesterday's manifest produces a
+# different pod today. The pod ImagePullPolicy default for `:latest` is
+# `Always`, hammering the registry for no reason.
+#
+# Allowed exceptions: kindest/node (the cluster bootstrap image — there's
+# nothing it could be tagged with that we wouldn't override) and dev-only
+# scratch images.
+#
+# Severity: MEDIUM
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-latest-tag
+  annotations:
+    policies.kyverno.io/title: Disallow :latest image tag
+    policies.kyverno.io/category: Best Practices · Reproducibility
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: disallow-latest
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      validate:
+        message: >-
+          Image tag :latest is not allowed. Pin a specific version or digest
+          (image: foo/bar:1.2.3 or foo/bar@sha256:...).
+        pattern:
+          spec:
+            containers:
+              - image: "!*:latest"
+            =(initContainers):
+              - image: "!*:latest"
