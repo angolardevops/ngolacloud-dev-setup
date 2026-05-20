@@ -22,6 +22,27 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [1.2.4] — 2026-05-20  — Patch: Zorin preflight + dry-run cleanliness
+
+### Fixed
+- **Preflight `refuse non-Ubuntu/Zorin`** rejected the very system the
+  playbook is built for. `ansible_distribution` on Zorin OS 18 is
+  `"Zorin OS"` (with the trailing `OS`), not `"Zorin"`, and the
+  vendor's own `VERSION_ID` is `18`, not `24`. Assertion now gates on
+  the Ubuntu base codename (`ansible_distribution_release`) — same
+  field `scripts/validate-host.sh` already uses — accepting
+  `Ubuntu` or `Zorin OS` whose release is in
+  `[noble, oracular, plucky, questing]`.
+- **Disk preflight in `--check` mode** showed *"Currently  GB"*
+  (empty stdout). The `df` shell task is now `check_mode: false`
+  (it's pure-read) so the assertion always has a value to compare.
+
+### Changed
+- `make setup-check` and `make setup-diff` now pass `--skip-tags verify`.
+  Role-level `Verify` tasks read post-apply state — meaningless in
+  dry-run because nothing was actually applied. They still run in real
+  `make setup`.
+
 ## [1.2.3] — 2026-05-20  — Patch: setup playbook + collection pins
 
 ### Fixed

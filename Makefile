@@ -148,10 +148,15 @@ setup: ## Run the full Ansible playbook (host + slice + docker)
 	cd $(ANSIBLE_DIR) && ansible-playbook setup.yml $(ANSIBLE_FLAGS)
 
 setup-check: ## Dry-run the playbook (--check --diff)
-	cd $(ANSIBLE_DIR) && ansible-playbook setup.yml $(ANSIBLE_FLAGS) --check --diff
+	@# `--check` makes mutating modules pretend; they don't actually
+	@# apply state. Subsequent `Verify` tasks (tagged 'verify') then
+	@# read the real system back and assert — which fails because the
+	@# state was never applied. Skip those asserts in dry-run; the
+	@# real `make setup` runs them.
+	cd $(ANSIBLE_DIR) && ansible-playbook setup.yml $(ANSIBLE_FLAGS) --check --diff --skip-tags verify
 
 setup-diff: ## Show diff without applying (--check --diff)
-	cd $(ANSIBLE_DIR) && ansible-playbook setup.yml $(ANSIBLE_FLAGS) --diff --check
+	cd $(ANSIBLE_DIR) && ansible-playbook setup.yml $(ANSIBLE_FLAGS) --diff --check --skip-tags verify
 
 health: ## Run scripts/health-check.sh
 	@scripts/health-check.sh

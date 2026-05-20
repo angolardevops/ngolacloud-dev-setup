@@ -23,14 +23,20 @@
     # ── Pre-flight: refuse to run on a host that doesn't match the
     #    assumptions baked into the roles. Cheap to check, expensive to
     #    debug a partial install on the wrong distro.
-    - name: Preflight — refuse non-Ubuntu/Zorin
+    # Gate on the Ubuntu base codename (noble = 24.04) instead of the
+    # vendor's own version. Zorin reports ansible_distribution='Zorin OS'
+    # (with the trailing 'OS') and its own VERSION_ID='18', but
+    # /etc/os-release sets UBUNTU_CODENAME=noble — which ansible exposes
+    # as ansible_distribution_release. Same field validate-host.sh uses.
+    - name: Preflight — refuse non-Ubuntu/Zorin or pre-noble base
       ansible.builtin.assert:
         that:
-          - ansible_distribution in ['Ubuntu', 'Zorin']
-          - ansible_distribution_major_version | int >= 24
+          - ansible_distribution in ['Ubuntu', 'Zorin OS']
+          - ansible_distribution_release in ['noble', 'oracular', 'plucky', 'questing']
         fail_msg: >-
-          This setup targets Ubuntu 24.04+ or Zorin 18+ (Ubuntu 24.04
-          base). Detected {{ ansible_distribution }} {{ ansible_distribution_version }}.
+          This setup targets Ubuntu 24.04+ or Zorin 18+ (Ubuntu 24.04 base).
+          Detected {{ ansible_distribution }} {{ ansible_distribution_version }}
+          (release: {{ ansible_distribution_release }}).
       tags: [always]
 
     - name: Preflight — cgroup v2 must be the unified hierarchy
@@ -52,6 +58,11 @@
         df -BG --output=avail / | tail -1 | tr -dc '0-9'
       register: free_gb
       changed_when: false
+      # check_mode:false so --check still populates free_gb.stdout — without
+      # it the next assert sees empty stdout and fails with a misleading
+      # "Currently  GB" message. This task is pure-read (df) so it's safe
+      # to always run.
+      check_mode: false
       tags: [always]
 
     - name: Preflight — abort if disk is full
