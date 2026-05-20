@@ -1,0 +1,46 @@
+# =============================================================================
+# k8s/security/trivy-operator-values.yaml — Helm values for trivy-operator
+# =============================================================================
+# Scans every container image running in the cluster + Kubernetes object
+# configs. Reports as CRDs (VulnerabilityReport, ConfigAuditReport,
+# RbacAssessmentReport) so other tools can subscribe.
+#
+# Trimmed for laptop:
+#   • Single trivy-operator pod
+#   • Scan window 24h (vs default 6h) to avoid pegging the laptop
+#   • Severity threshold: HIGH+ (skip LOW/UNKNOWN to keep reports lean)
+#   • Filesystem caching (Persistent dir on the host via Docker volume)
+# =============================================================================
+operator:
+  replicas: 1
+  scanJobsConcurrentLimit: 2
+  scanJobTimeout: 5m
+  vulnerabilityScannerEnabled: true
+  configAuditScannerEnabled: true
+  rbacAssessmentScannerEnabled: true
+  infraAssessmentScannerEnabled: true
+  exposedSecretScannerEnabled: true
+
+trivy:
+  ignoreUnfixed: true       # only fail on CVEs that HAVE a fix
+  severity: "HIGH,CRITICAL"
+  # Cache layer downloads across scans
+  storageClassName: "standard"
+  storageSize: "5Gi"
+  # Scan only the namespaces we care about; skip system namespaces.
+  excludeNamespaces: "kube-system,kube-public,kube-node-lease,trivy-system"
+
+# Reports retention — keep latest 5 per workload so the etcd doesn't
+# blow up over a week of scans.
+operator_metadata:
+  reportRecordFailedChecksOnly: true
+
+# Resources — Trivy itself is CPU-hungry during scans. Limit so it
+# doesn't starve the rest of the cluster.
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "1500m"
+    memory: "1Gi"

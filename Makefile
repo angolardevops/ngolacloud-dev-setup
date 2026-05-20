@@ -40,7 +40,11 @@ endif
         wireguard-up \
         kyverno-install kyverno-enforce kyverno-uninstall \
         dr-snapshot dr-restore dr-drill \
-        flux-install flux-install-sample flux-uninstall
+        flux-install flux-install-sample flux-uninstall \
+        trivy-install kube-bench security-report security-uninstall \
+        falco-install falco-test falco-tail falco-uninstall \
+        opencost-install opencost-report opencost-ui opencost-uninstall \
+        security-stack
 
 .DEFAULT_GOAL := help
 
@@ -178,6 +182,47 @@ flux-install-sample: ## Install Flux + apply sample GitRepository/Kustomization
 
 flux-uninstall: ## Remove Flux entirely
 	@scripts/flux-install.sh --uninstall
+
+# ──────────────────────────────────────────────────────────────────────────
+# Tier 9 — security & cost (defence-in-depth + cost model)
+# ──────────────────────────────────────────────────────────────────────────
+trivy-install: ## Install Trivy Operator (continuous CVE + config scan)
+	@scripts/security-scan.sh trivy
+
+kube-bench: ## Run kube-bench Job (CIS benchmark) and print output
+	@scripts/security-scan.sh bench
+
+security-report: ## Aggregate Kyverno + Trivy + kube-bench findings
+	@scripts/security-scan.sh report
+
+security-uninstall: ## Remove Trivy + kube-bench
+	@scripts/security-scan.sh uninstall
+
+falco-install: ## Install Falco (modern_ebpf) for runtime threat detection
+	@scripts/falco-install.sh
+
+falco-test: ## Trigger the custom "netcat listener" Falco rule
+	@scripts/falco-install.sh --test
+
+falco-tail: ## Tail Falco alerts (Ctrl+C to stop)
+	@scripts/falco-install.sh --tail
+
+falco-uninstall: ## Remove Falco
+	@scripts/falco-install.sh --uninstall
+
+opencost-install: ## Install opencost (cost model in AOA)
+	@scripts/opencost-install.sh
+
+opencost-report: ## Print per-namespace cost summary (last 24h)
+	@scripts/opencost-install.sh --report
+
+opencost-ui: ## Port-forward the opencost UI to http://localhost:9090
+	@scripts/opencost-install.sh --ui
+
+opencost-uninstall: ## Remove opencost
+	@scripts/opencost-install.sh --uninstall
+
+security-stack: kyverno-install trivy-install falco-install opencost-install ## Install ALL Tier 9 tools (Kyverno + Trivy + Falco + opencost)
 
 uninstall: ## Revert as much as possible (slice + sysctl override + daemon.json)
 	@printf "$(RED)── uninstall ──$(NC)\n"

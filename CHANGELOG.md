@@ -22,6 +22,29 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-05-19  — Tier 9 (security & cost defence-in-depth)
+
+### Added
+- **Trivy Operator** (`scripts/security-scan.sh trivy`) — continuous CVE
+  + config audit scans. Reports as CRDs (`VulnerabilityReport`,
+  `ConfigAuditReport`, `RbacAssessmentReport`). Severity threshold
+  HIGH+ to keep reports lean.
+- **kube-bench Job** (`make kube-bench`) — on-demand CIS Kubernetes
+  Benchmark scan. TTL 1h so the job auto-cleans.
+- **Security report aggregator** (`make security-report`) — aggregates
+  Kyverno + Trivy + kube-bench findings into one human summary.
+- **Falco** (`scripts/falco-install.sh`) — runtime threat detection via
+  modern_ebpf driver (kernel ≥ 5.8 required, Zorin 18 supports).
+  Custom rule: "Suspicious netcat listener" flags `nc -lvp …` spawned
+  in workload pods. `falco-test` triggers it on demand.
+- **opencost** (`scripts/opencost-install.sh`) — cost modelling in AOA
+  using a custom pricing config matching the NgolaCloud demo plans
+  (250 000 AOA enterprise, 14 800 business, 0 startup). UI port-
+  forwarded to `localhost:9090` via `make opencost-ui`.
+- `make security-stack` — installs ALL Tier 9 tools at once
+  (Kyverno + Trivy + Falco + opencost).
+- ADR-0008: Security baseline — defence in depth (4 layers).
+
 ## [0.7.0] — 2026-05-19  — Tier 8 (GitOps + policies + DR)
 
 ### Added

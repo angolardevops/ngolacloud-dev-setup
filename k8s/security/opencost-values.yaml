@@ -1,0 +1,51 @@
+# =============================================================================
+# k8s/security/opencost-values.yaml — Helm values for opencost on Kind
+# =============================================================================
+# Cost modelling for the dev cluster. Uses a custom pricing config so the
+# numbers map to what NgolaCloud actually charges customers in AOA, not
+# AWS/GCP list prices. Produces:
+#
+#   • Per-namespace cost/day, cost/month projections
+#   • Per-pod cost breakdown (CPU + memory + storage)
+#   • Allocation reports (idle vs allocated)
+#
+# Where it fits: pair with kube-prometheus-stack (already deployed in
+# observability ns) — opencost queries Prometheus for usage, applies
+# the pricing model, exposes its own /metrics + a JSON API.
+# =============================================================================
+opencost:
+  exporter:
+    defaultClusterId: "ngolacloud-dev"
+    # Custom pricing — AOA values matching the demo Plans:
+    #   Empresarial: 250 000 AOA/mês com vCPU illimitado
+    #   Negócio:      14 800 AOA/mês com 32 vCPU + 64 GB RAM + 1 TB
+    # → derived unit prices below (per hour, divided by typical workload)
+    defaultModelPricing:
+      enabled: true
+      CPU: "0.5"           # AOA/vCPU/h (≈ 14 800 / 730 / 40)
+      RAM: "0.05"          # AOA/GB/h
+      storage: "0.01"      # AOA/GB/h
+      internetNetworkEgress: "1.0"
+      regionNetworkEgress: "0.1"
+      zoneNetworkEgress: "0.05"
+      spotCPU: "0.25"
+      spotRAM: "0.025"
+      GPU: "5"
+  # Connect to the kube-prom-stack Prometheus we already deployed.
+  prometheus:
+    internal:
+      enabled: false
+    external:
+      enabled: true
+      url: "http://kube-prom-kube-prome-prometheus.observability.svc.cluster.local:9090"
+
+# UI exposed via the in-chart subchart (port 9090).
+ui:
+  enabled: true
+  service:
+    type: ClusterIP
+
+# Resources — opencost is light; cap so it can't grow.
+resources:
+  requests: {cpu: "50m",  memory: "128Mi"}
+  limits:   {cpu: "500m", memory: "512Mi"}
