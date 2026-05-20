@@ -22,6 +22,57 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-05-20  — Patch: bootstrap-dev + valid pre-commit pins
+
+### Fixed
+- `.pre-commit-config.yaml` pinned ansible-lint v25.10.0 (didn't
+  exist — speculative pin). Refreshed every hook against
+  `git ls-remote --tags`:
+    * `pre-commit-hooks` v5.0.0 → **v6.0.0**
+    * `shellcheck-py` v0.10.0.1 → **v0.11.0.1**
+    * `yamllint` v1.37.0 → **v1.38.0**
+    * `ansible-lint` v25.10.0 → **v26.4.0**
+    * `markdownlint-cli` v0.43.0 → **v0.48.0**
+
+### Added
+- **`make bootstrap-dev`** — one-shot idempotent client setup. Five
+  phases (apt, pipx ensurepath, pipx install Python CLIs, ansible-
+  galaxy collections, pre-commit + direnv hooks). Detects what's
+  already installed and skips.
+- `make pre-commit-update` — `pre-commit autoupdate` wrapper.
+- `make direnv-allow` — alias for `direnv allow .` after `.envrc` edits.
+- `$(DIM)` colour helper in Makefile for muted text.
+
+### Changed
+- README quickstart now shows the 2-step path: `make bootstrap-dev`
+  (one-time per laptop) → `make onboard` (full lab).
+
+## [1.2.0] — 2026-05-19  — Tier 15 (onboarding docs + interactive HTML + skills)
+
+### Added
+- **Master onboarding guide** (`docs/onboarding.md`) — 10-section
+  guide from prerequisites to first PR. Covers integration with
+  `ngolacloud-integration` (portal + CLI).
+- **Commands reference** (`docs/commands-reference.md`) — exhaustive
+  ref for every make target + every shell script (60+ targets, 18
+  scripts). Searchable, with examples + exit codes.
+- **File-structure tree** (`docs/file-structure.md`) — annotated.
+  Every file/dir with purpose + owner tier + touch-when.
+- **Interactive HTML** (`doc/ngolacloud-dev.html`) — 42 KB single
+  file. Sticky TOC with scroll-spy, copy-to-clipboard, two Mermaid
+  diagrams (call graph + ecosystem), NgolaCloud branding. Offline-
+  friendly after first paint.
+- **5 LLM-invokable skills** under `.claude/skills/`:
+    * `pr-workflow/` — branching, PR template, reviewer checklist
+    * `semantic-commits/` — Conventional Commits + SemVer + tag flow
+    * `pre-commit-bestpractices/` — hook setup, repo-type matrix
+    * `solid-cqrs-clean/` — SOLID + CQRS + Clean Arch with worked
+      "suspend tenant" example
+    * `sre-platform-12factor/` — 12 Factor + SRE + Platform Engineering
+
+### Changed
+- README now references the 8 docs + 11 ADRs surface.
+
 ## [1.1.0] — 2026-05-19  — Tier 14 (lab→app boundary + role test coverage)
 
 ### Added
