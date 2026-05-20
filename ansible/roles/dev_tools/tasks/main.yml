@@ -102,9 +102,14 @@
   failed_when: false
   tags: [tools, secrets]
 
+# NOTE: the `releases/latest/download/<file>` pattern only resolves if
+# the latest release's asset is named exactly <file>. Older versions of
+# this role used `…/latest/download/sops-v3.9.1.linux.amd64`, which 404s
+# the moment upstream cuts a newer release (sops is on 3.13.x now).
+# Pin via inventory and construct the explicit versioned download URL.
 - name: Sops — download binary
   ansible.builtin.get_url:
-    url: "https://github.com/getsops/sops/releases/latest/download/sops-v3.9.1.linux.amd64"
+    url: "https://github.com/getsops/sops/releases/download/v{{ sops_version }}/sops-v{{ sops_version }}.linux.amd64"
     dest: /usr/local/bin/sops
     mode: '0755'
     owner: root

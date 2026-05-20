@@ -22,6 +22,21 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [1.2.9] — 2026-05-20  — Patch: sops download URL pinned + versioned
+
+### Fixed
+- **`Sops — download binary` 404'd** on every fresh host:
+  `https://github.com/getsops/sops/releases/latest/download/sops-v3.9.1.linux.amd64`
+  This URL pattern only resolves when the *latest* GitHub release's
+  asset is named exactly `sops-v3.9.1.linux.amd64`. Once upstream
+  cuts a newer release (sops is on `v3.13.1` now), the asset doesn't
+  exist on `latest` anymore → 404.
+- Added `sops_version = 3.13.1` to `inventory.ini` (alongside the
+  other pinned tools), and switched the role URL to the explicit
+  versioned form
+  `releases/download/v{{ sops_version }}/sops-v{{ sops_version }}.linux.amd64`.
+  Verified `HTTP 200` against upstream.
+
 ## [1.2.8] — 2026-05-20  — Patch: invoking_user (rustup, krew, docker/libvirt groups)
 
 ### Fixed
