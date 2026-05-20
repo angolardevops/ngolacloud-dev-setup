@@ -13,29 +13,51 @@
 default_language_version:
   python: python3.12
 
+# Why python3.12 explicitly on every hook below?
+# ─────────────────────────────────────────────
+# mise (and similar version managers) install Python 3.13/3.14 as shims
+# in ~/.local/bin/. The shim works at top-level but creates broken venvs
+# (`ModuleNotFoundError: No module named 'encodings'`) when pre-commit
+# tries `python3.14 -m venv ...`. The apt-managed `/usr/bin/python3.12`
+# has a full stdlib and produces working venvs.
+#
+# `default_language_version` above is honoured ONLY for hooks that don't
+# pin their own. Several upstream hooks (notably ansible-lint) request
+# generic `python3`, which pre-commit resolves to the highest in PATH
+# (mise's 3.14, broken). Pinning per-hook avoids the surprise.
+
 repos:
   # ── Hygiene ────────────────────────────────────────────────────────────
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        language_version: python3.12
       - id: end-of-file-fixer
+        language_version: python3.12
       - id: check-merge-conflict
+        language_version: python3.12
       - id: check-added-large-files
+        language_version: python3.12
         args: [--maxkb=512]
       - id: check-yaml
+        language_version: python3.12
         # Ansible-lint validates ansible/ YAML more strictly; keep this hook
         # tolerant of multi-document files (kind/ uses ---).
         args: [--allow-multiple-documents, --unsafe]
       - id: check-toml
+        language_version: python3.12
       - id: check-executables-have-shebangs
+        language_version: python3.12
       - id: check-shebang-scripts-are-executable
+        language_version: python3.12
 
   # ── Shell ──────────────────────────────────────────────────────────────
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
     hooks:
       - id: shellcheck
+        language_version: python3.12
         args: [-x]
 
   # ── YAML ───────────────────────────────────────────────────────────────
@@ -43,6 +65,7 @@ repos:
     rev: v1.38.0
     hooks:
       - id: yamllint
+        language_version: python3.12
         args:
           - -d
           - "{extends: default, rules: {line-length: {max: 160}, document-start: disable, truthy: {check-keys: false}, indentation: {indent-sequences: false}}}"
@@ -53,6 +76,7 @@ repos:
     rev: v26.4.0
     hooks:
       - id: ansible-lint
+        language_version: python3.12
         # Limit to the playbook + roles; the root files (Makefile, scripts)
         # are linted by other hooks.
         files: ^ansible/.*\.(ya?ml)$
