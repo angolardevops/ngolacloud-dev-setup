@@ -22,7 +22,9 @@ NC    := \033[0m
 
 ANSIBLE_DIR := ansible
 PLAYBOOK    := $(ANSIBLE_DIR)/setup.yml
-INVENTORY   := $(ANSIBLE_DIR)/inventory.ini
+# Path is relative to ANSIBLE_DIR because every ansible-* target cd's in
+# first (so ansible.cfg next to it is auto-discovered).
+INVENTORY   := inventory.ini
 TAGS        ?=
 VERBOSE     ?=
 
@@ -100,10 +102,10 @@ bootstrap-dev: ## One-time: apt + pipx + pre-commit + direnv + hooks installed
 		fi; \
 	done
 
-	@# ── 4) ansible-galaxy collections (idempotent) ──────────────────
-	@printf "$(CYAN)[4/5]$(NC) ansible-galaxy: community.general + ansible.posix\n"
-	@ansible-galaxy collection install community.general ansible.posix >/dev/null 2>&1 \
-		&& printf "  $(GREEN)✓$(NC) collections installed\n"
+	@# ── 4) ansible-galaxy collections (idempotent, version-pinned) ──
+	@printf "$(CYAN)[4/5]$(NC) ansible-galaxy: install -r ansible/requirements.yml\n"
+	@ansible-galaxy collection install -r ansible/requirements.yml --force >/dev/null 2>&1 \
+		&& printf "  $(GREEN)✓$(NC) community.general (<11) + ansible.posix (<2) installed\n"
 
 	@# ── 5) pre-commit + direnv local config ─────────────────────────
 	@printf "$(CYAN)[5/5]$(NC) pre-commit install + direnv allow\n"

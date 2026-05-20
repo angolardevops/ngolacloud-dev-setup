@@ -22,6 +22,33 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [1.2.3] — 2026-05-20  — Patch: setup playbook + collection pins
+
+### Fixed
+- **Makefile `INVENTORY` path** — was `ansible/inventory.ini` but every
+  ansible-* target does `cd ansible/` first, resolving the final path
+  to `ansible/ansible/inventory.ini` (a non-existent file). The play
+  silently fell back to `implicit localhost`, then warned
+  *"Could not match supplied host pattern, ignoring: ngolacloud_dev"*
+  and exited 0 with **zero tasks executed** — exactly what was hiding
+  the `resource_slice not configured` and `no swap configured` gaps
+  in `make health` after a clean `make setup`. The inventory is now
+  relative to `ANSIBLE_DIR`.
+
+### Added
+- **`ansible/requirements.yml`** with pinned collections:
+    * `community.general >=10.0.0,<11.0.0` (last line to support
+      ansible-core 2.16 shipped by apt on Ubuntu 24.04 / Zorin 18)
+    * `ansible.posix >=1.5.0,<2.0.0`
+  Without pins, `ansible-galaxy collection install community.general`
+  pulls 11.x which warns *"Collection community.general does not
+  support Ansible version 2.16.3"* and refuses to load on apt-Ansible.
+
+### Changed
+- `make bootstrap-dev` step [4/5] now runs
+  `ansible-galaxy collection install -r ansible/requirements.yml --force`
+  instead of the unpinned form.
+
 ## [1.2.2] — 2026-05-20  — Patch: pre-commit + mise broken-venv guard
 
 ### Fixed

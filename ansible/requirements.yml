@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# ansible-galaxy collections required by the playbook
+# =============================================================================
+# Install with:
+#   ansible-galaxy collection install -r ansible/requirements.yml
+#
+# Why pinned?
+# ───────────
+# Ubuntu 24.04 / Zorin 18 ship ansible-core 2.16.3 via apt. The latest
+# major of community.general (11.x) dropped 2.16 support, so installing
+# unpinned (`collection install community.general`) on apt-Ansible breaks
+# with:
+#     Collection community.general does not support Ansible version 2.16.3
+# Pinning to the last 10.x and last 1.x lines keeps a clean apt-only path.
+# Users who run pipx-installed `ansible-core` (2.18+) can bump these caps.
+# =============================================================================
+
+collections:
+  - name: community.general
+    version: ">=10.0.0,<11.0.0"
+  - name: ansible.posix
+    version: ">=1.5.0,<2.0.0"
