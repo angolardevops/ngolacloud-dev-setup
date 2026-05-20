@@ -1,0 +1,67 @@
+---
+# =============================================================================
+# .pre-commit-config.yaml — local gate before pushing
+# =============================================================================
+# Mirrors `.github/workflows/lint.yml` so CI failures are caught client-side.
+# Install once::
+#
+#     pip install pre-commit
+#     pre-commit install
+#
+# Run on every commit; bypass with `git commit --no-verify` (don't make a habit).
+# =============================================================================
+default_language_version:
+  python: python3.12
+
+repos:
+  # ── Hygiene ────────────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: check-yaml
+        # Ansible-lint validates ansible/ YAML more strictly; keep this hook
+        # tolerant of multi-document files (kind/ uses ---).
+        args: [--allow-multiple-documents, --unsafe]
+      - id: check-toml
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+
+  # ── Shell ──────────────────────────────────────────────────────────────
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: [-x]
+
+  # ── YAML ───────────────────────────────────────────────────────────────
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.37.0
+    hooks:
+      - id: yamllint
+        args:
+          - -d
+          - "{extends: default, rules: {line-length: {max: 160}, document-start: disable, truthy: {check-keys: false}, indentation: {indent-sequences: false}}}"
+        files: \.(ya?ml)$
+
+  # ── Ansible ────────────────────────────────────────────────────────────
+  - repo: https://github.com/ansible/ansible-lint
+    rev: v25.10.0
+    hooks:
+      - id: ansible-lint
+        # Limit to the playbook + roles; the root files (Makefile, scripts)
+        # are linted by other hooks.
+        files: ^ansible/.*\.(ya?ml)$
+        args: [--offline]
+
+  # ── Markdown ───────────────────────────────────────────────────────────
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.43.0
+    hooks:
+      - id: markdownlint
+        # Don't fight long lines in ADRs (tables can be wide).
+        args: ['--disable', 'MD013', '--', '**/*.md']

@@ -50,6 +50,12 @@ help: ## Show this help
 validate: ## Pre-flight check (no sudo, no writes) — run BEFORE `make setup`
 	@scripts/validate-host.sh
 
+onboard: ## One-shot: preflight + setup + kind-up (+obs) + bench + Grafana
+	@scripts/onboard.sh
+
+onboard-yes: ## onboard --yes (unattended; assume Y to all prompts)
+	@scripts/onboard.sh --yes
+
 setup: ## Run the full Ansible playbook (host + slice + docker)
 	@printf "$(CYAN)── setup ──$(NC)\n"
 	cd $(ANSIBLE_DIR) && ansible-playbook setup.yml $(ANSIBLE_FLAGS)

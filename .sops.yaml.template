@@ -1,0 +1,28 @@
+# =============================================================================
+# .sops.yaml.template — sops creation rules
+# =============================================================================
+# Copy to ANY ngolacloud-* project root to enable transparent encryption
+# of YAML/JSON/.env files via age. Editing an encrypted file::
+#
+#     export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
+#     sops edit secrets/dev.yaml
+#
+# The first time:
+#   1. age-keygen -o ~/.config/sops/age/keys.txt    # generate identity
+#   2. Copy the `public key:` line printed by age-keygen
+#   3. Paste it into the age:  block below — that's who can decrypt
+#   4. sops -e -i secrets/dev.yaml                  # encrypt in place
+# =============================================================================
+creation_rules:
+  # YAML / JSON files in secrets/ or matching *.dec.yaml get encrypted with
+  # the team age recipients listed below.
+  - path_regex: (secrets/|\.dec\.)(yaml|yml|json)$
+    encrypted_regex: '^(data|stringData|password|token|api_key|secret_.*|.*_secret|.*_key|.*_token)$'
+    age: >-
+      age1YOURPUBKEYHEREREPLACEMEFROMagekeygenoutputaaaaaaaaaaaaaaaaaaaaaaa,
+      age1OTHERTEAMMEMBERSPUBKEYbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+
+  # .env files (Dotenv) get the whole file encrypted, not just specific keys.
+  - path_regex: \.env\.secret$
+    age: >-
+      age1YOURPUBKEYHEREREPLACEMEFROMagekeygenoutputaaaaaaaaaaaaaaaaaaaaaaa

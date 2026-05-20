@@ -12,7 +12,7 @@
 # =============================================================================
 
 # ── apt-installable (Ubuntu 24.04 LTS ships current versions) ─────────────
-- name: Dev tools — apt install (direnv, fzf, ripgrep, bat, jq, btop)
+- name: Dev tools — apt install (direnv, fzf, ripgrep, bat, jq, btop, age)
   ansible.builtin.apt:
     name:
       - direnv
@@ -23,6 +23,7 @@
       - btop
       - tree
       - htop
+      - age        # symmetric/public-key file encryption — feeds sops
     state: present
     update_cache: true
     cache_valid_time: 3600
@@ -92,6 +93,54 @@
   when: yq_current.stdout == ''
   tags: [tools]
 
+# ── sops (Mozilla — encrypts YAML/JSON/.env using age/PGP backends) ──────
+- name: Sops — current version
+  ansible.builtin.shell: |
+    /usr/local/bin/sops --version 2>/dev/null | head -1 | awk '{print $2}'
+  register: sops_current
+  changed_when: false
+  failed_when: false
+  tags: [tools, secrets]
+
+- name: Sops — download binary
+  ansible.builtin.get_url:
+    url: "https://github.com/getsops/sops/releases/latest/download/sops-v3.9.1.linux.amd64"
+    dest: /usr/local/bin/sops
+    mode: '0755'
+    owner: root
+    group: root
+    force: false
+  when: sops_current.stdout == ''
+  tags: [tools, secrets]
+
+# ── vault CLI (HashiCorp — dev mode is enough for laptop secret storage) ──
+- name: Vault CLI — current version
+  ansible.builtin.shell: |
+    /usr/local/bin/vault --version 2>/dev/null | awk '{print $2}' | tr -d 'v'
+  register: vault_current
+  changed_when: false
+  failed_when: false
+  tags: [tools, secrets]
+
+- name: Vault CLI — download zip
+  ansible.builtin.get_url:
+    url: "https://releases.hashicorp.com/vault/1.18.2/vault_1.18.2_linux_amd64.zip"
+    dest: /tmp/vault-1.18.2.zip
+    mode: '0644'
+  when: vault_current.stdout != '1.18.2'
+  tags: [tools, secrets]
+
+- name: Vault CLI — extract binary
+  ansible.builtin.unarchive:
+    src: /tmp/vault-1.18.2.zip
+    dest: /usr/local/bin/
+    remote_src: true
+    mode: '0755'
+    owner: root
+    group: root
+  when: vault_current.stdout != '1.18.2'
+  tags: [tools, secrets]
+
 # ── direnv hook in /etc/bash.bashrc ───────────────────────────────────────
 - name: Direnv — system-wide bash hook
   ansible.builtin.lineinfile:
@@ -125,5 +174,8 @@
     - eza
     - yq
     - jq
+    - age
+    - sops
+    - vault
   changed_when: false
   tags: [tools, verify]

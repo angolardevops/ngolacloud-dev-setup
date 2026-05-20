@@ -19,20 +19,24 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 
 usage() {
   cat <<EOF
-Usage: $0 [--recreate] [--no-cilium]
-  --recreate    Delete existing cluster first (data loss!)
-  --no-cilium   Skip Cilium install (use only kindnet fallback — debug only)
-  --help        Show this help
+Usage: $0 [--recreate] [--no-cilium] [--with-observability]
+  --recreate             Delete existing cluster first (data loss!)
+  --no-cilium            Skip Cilium install (use only kindnet fallback — debug only)
+  --with-observability   Install kube-prometheus-stack + Loki; Grafana on http://localhost:3000
+                         (default if env WITH_OBS=1)
+  --help                 Show this help
 EOF
 }
 
 RECREATE=0
 INSTALL_CILIUM=1
+INSTALL_OBS="${WITH_OBS:-0}"
 while [ $# -gt 0 ]; do
   case "$1" in
-    --recreate)  RECREATE=1; shift ;;
-    --no-cilium) INSTALL_CILIUM=0; shift ;;
-    --help|-h)   usage; exit 0 ;;
+    --recreate)             RECREATE=1; shift ;;
+    --no-cilium)            INSTALL_CILIUM=0; shift ;;
+    --with-observability)   INSTALL_OBS=1; shift ;;
+    --help|-h)              usage; exit 0 ;;
     *) log_error "unknown flag: $1"; usage; exit 2 ;;
   esac
 done
@@ -102,6 +106,34 @@ kubectl -n kube-system patch deploy metrics-server \
 # Restart deploy to pick up the patch
 kubectl -n kube-system rollout restart deploy/metrics-server >/dev/null
 log_ok "metrics-server installed"
+
+# ── 6) Optional: observability stack ──────────────────────────────────────
+if [ "$INSTALL_OBS" -eq 1 ]; then
+  log_info "phase 6/6 — installing observability stack (kube-prom + loki)"
+  kubectl create ns observability >/dev/null 2>&1 || true
+
+  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
+  helm repo add grafana https://grafana.github.io/helm-charts >/dev/null 2>&1 || true
+  helm repo update prometheus-community grafana >/dev/null
+
+  helm upgrade --install kube-prom prometheus-community/kube-prometheus-stack \
+    --namespace observability \
+    --values "$REPO_ROOT/kind/observability-values.yaml" \
+    --wait --timeout 8m
+
+  helm upgrade --install loki-stack grafana/loki-stack \
+    --namespace observability \
+    --set loki.persistence.enabled=false \
+    --set promtail.enabled=true \
+    --wait --timeout 5m
+
+  wait_for "Grafana pod Running" 90 \
+    "kubectl -n observability get pods -l app.kubernetes.io/name=grafana --no-headers 2>/dev/null | grep -c Running" "1"
+
+  log_ok "observability stack installed"
+  log_info "  Grafana:    http://localhost:3000  (admin / ngolacloud-dev)"
+  log_info "  Prometheus: kubectl -n observability port-forward svc/kube-prom-kube-prome-prometheus 9090:9090"
+fi
 
 # ── Summary ───────────────────────────────────────────────────────────────
 echo

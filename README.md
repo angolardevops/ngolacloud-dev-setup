@@ -11,12 +11,21 @@ como ambiente de desenvolvimento `ngolacloud infra dev`. Foco em:
 - **I/O scheduler** por classe de dispositivo (NVMe none, SSD mq-deadline,
   HDD bfq)
 
-## Quickstart (5 passos)
+## Quickstart — one shot
 
 ```bash
-# 1. Sanity check da workstation
-make help
-make health                            # estado actual (antes do setup)
+# Faz o lab inteiro do zero: preflight → setup → cluster → observability → Grafana
+make onboard
+```
+
+`onboard` corre tudo guiado, pede confirmação em cada fase destrutiva.
+Para CI / unattended: `make onboard-yes`.
+
+## Quickstart manual (passo-a-passo)
+
+```bash
+# 1. Sanity check da workstation (sem sudo, sem writes)
+make validate                          # → ready / warn / fail (exit 0/1/2)
 
 # 2. Dry-run para ver o que mudaria
 make setup-check                       # --check --diff (sem mexer)
@@ -29,6 +38,9 @@ make reboot-if-needed
 
 # 5. Validar pós-setup
 make health                            # deve estar tudo OK
+
+# 6. Subir o cluster + observability
+make kind-up WITH_OBS=1                # Grafana em http://localhost:3000
 ```
 
 ## Workflows
@@ -107,6 +119,28 @@ ngolacloud-dev-setup/
 ```bash
 sudo apt install shellcheck
 pip install ansible-lint yamllint
+```
+
+### Opcional — pre-commit hooks
+
+```bash
+pip install pre-commit
+pre-commit install                     # roda em cada `git commit`
+pre-commit run --all-files             # roda agora contra todo o tree
+```
+
+### Opcional — encriptar secrets do repo com sops + age
+
+```bash
+# 1. Gerar a tua identity (faz UMA vez)
+mkdir -p ~/.config/sops/age
+age-keygen -o ~/.config/sops/age/keys.txt
+
+# 2. Copiar a public key (linha "public key: age1...") para .sops.yaml
+#    (template em .sops.yaml.template)
+
+# 3. Encriptar
+sops -e -i secrets/dev.yaml
 ```
 
 ## Princípios

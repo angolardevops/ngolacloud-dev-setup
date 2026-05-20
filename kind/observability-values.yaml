@@ -1,0 +1,142 @@
+# =============================================================================
+# kind/observability-values.yaml — Helm values for kube-prometheus-stack on Kind
+# =============================================================================
+# Trimmed for a laptop. Differences vs production:
+#
+#   • Single replica for everything (alertmanager, prometheus, grafana)
+#   • Storage uses Docker volume (no PV/PVC chain)
+#   • Resource requests scaled DOWN to fit the 32 GB slice budget
+#     (alongside Cilium + the actual workloads being observed)
+#   • Grafana NodePort 30030 → host port 3000 via Kind extraPortMappings
+#   • All scrape jobs that target prod-only services (etcd-as-pod,
+#     external nodes) are disabled
+#
+# Total RAM usage of the observability stack:
+#   prometheus:    ~1.0 GB
+#   alertmanager:  ~150 MB
+#   grafana:       ~300 MB
+#   node-exporter: ~30 MB × 4 nodes = 120 MB
+#   kube-state:    ~80 MB
+#   ────────────────────────────────────────
+#   Total:         ~1.6 GB
+# =============================================================================
+
+# ── Prometheus ────────────────────────────────────────────────────────────
+prometheus:
+  prometheusSpec:
+    replicas: 1
+    retention: 24h
+    retentionSize: "8GB"
+    resources:
+      requests: {cpu: "100m", memory: "512Mi"}
+      limits:   {cpu: "1000m", memory: "1500Mi"}
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources: {requests: {storage: 10Gi}}
+    # Drop the prod-style additional scrapers; Cilium agent metrics come in
+    # via the ServiceMonitor that Cilium ships, not here.
+    additionalScrapeConfigs: []
+    # ServiceMonitors / PodMonitors in any namespace are watched.
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector: {}
+
+# ── Alertmanager (sized down — no real alerts in dev) ────────────────────
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1
+    resources:
+      requests: {cpu: "20m", memory: "64Mi"}
+      limits:   {cpu: "200m", memory: "200Mi"}
+
+# ── Grafana ───────────────────────────────────────────────────────────────
+grafana:
+  enabled: true
+  replicas: 1
+  adminPassword: "ngolacloud-dev"  # dev-only — DO NOT carry to prod
+  resources:
+    requests: {cpu: "50m", memory: "128Mi"}
+    limits:   {cpu: "500m", memory: "512Mi"}
+  service:
+    type: NodePort
+    nodePort: 30030
+  # Pre-installed dashboards from grafana.com IDs.
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+  dashboards:
+    default:
+      kubernetes-cluster:
+        gnetId: 7249    # Kubernetes Cluster overview
+        revision: 1
+        datasource: Prometheus
+      kubernetes-pods:
+        gnetId: 6417    # Kubernetes Pods
+        revision: 1
+        datasource: Prometheus
+      node-exporter:
+        gnetId: 1860    # Node exporter full
+        revision: 33
+        datasource: Prometheus
+      cilium-overview:
+        gnetId: 16613   # Cilium Operator overview
+        revision: 1
+        datasource: Prometheus
+      loki-logs:
+        gnetId: 13407   # Loki dashboard quick search
+        revision: 1
+        datasource: Loki
+  # Add Loki as a second datasource alongside the auto-configured Prometheus.
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki-stack.observability.svc.cluster.local:3100
+      jsonData:
+        maxLines: 1000
+
+# ── Node exporter — one per worker, scaled down ──────────────────────────
+nodeExporter:
+  enabled: true
+prometheus-node-exporter:
+  resources:
+    requests: {cpu: "10m", memory: "32Mi"}
+    limits:   {cpu: "100m", memory: "128Mi"}
+
+# ── kube-state-metrics ────────────────────────────────────────────────────
+kubeStateMetrics:
+  enabled: true
+kube-state-metrics:
+  resources:
+    requests: {cpu: "10m", memory: "32Mi"}
+    limits:   {cpu: "100m", memory: "128Mi"}
+
+# ── Disable the scrape jobs that target prod-only services ───────────────
+# These point at masters/etcd/scheduler which kindest/node hides behind
+# localhost-only listeners — scrapes would always fail.
+kubeApiServer:
+  enabled: true
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false       # Cilium replaces kube-proxy
+kubeEtcd:
+  enabled: false       # exposed only on 127.0.0.1 inside the kind nodes
+
+# Speed up Helm chart install — the operator can apply CRDs separately.
+crds:
+  enabled: true

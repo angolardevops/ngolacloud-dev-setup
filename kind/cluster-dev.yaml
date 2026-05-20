@@ -41,6 +41,11 @@ nodes:
       - containerPort: 443
         hostPort: 443
         protocol: TCP
+      # Grafana via kube-prometheus-stack NodePort (only used when the
+      # cluster was created with `make kind-up WITH_OBS=1`)
+      - containerPort: 30030
+        hostPort: 3000
+        protocol: TCP
     kubeadmConfigPatches:
       - |
         kind: ClusterConfiguration
