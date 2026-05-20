@@ -1,0 +1,18 @@
+---
+# =============================================================================
+# molecule/default/converge.yml — applies the role under test
+# =============================================================================
+- name: Converge
+  hosts: all
+  become: true
+  gather_facts: true
+  pre_tasks:
+    # The container may need its apt cache primed for ansible.posix.mount
+    # (used in the swap task) and community.general.modprobe.
+    - name: Container prep — apt update
+      ansible.builtin.apt:
+        update_cache: true
+      when: ansible_os_family == 'Debian'
+
+  roles:
+    - role: system_tuning

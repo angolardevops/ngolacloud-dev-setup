@@ -50,7 +50,8 @@ endif
         cosign-attest cosign-verify-attest cosign-policy-slsa \
         eso-install eso-with-vault eso-demo eso-uninstall \
         chaos-install chaos-apply chaos-target chaos-status chaos-uninstall \
-        resilience-stack
+        resilience-stack \
+        uninstall-cluster uninstall-host molecule-test
 
 .DEFAULT_GOAL := help
 
@@ -294,8 +295,29 @@ chaos-uninstall: ## Remove chaos-mesh + experiments
 
 resilience-stack: eso-with-vault chaos-apply ## Install Tier 11 (ESO + Vault + chaos)
 
-uninstall: ## Revert as much as possible (slice + sysctl override + daemon.json)
-	@printf "$(RED)── uninstall ──$(NC)\n"
+# ──────────────────────────────────────────────────────────────────────────
+# Tier 12 — quality (molecule tests; smoke/release run only in CI)
+# ──────────────────────────────────────────────────────────────────────────
+molecule-test: ## Run molecule tests for the system_tuning role
+	@command -v molecule >/dev/null || { printf "$(YEL)molecule missing — pip install 'molecule[docker]' molecule-plugins[docker] testinfra$(NC)\n"; exit 1; }
+	cd ansible/roles/system_tuning && molecule test
+
+uninstall: uninstall-cluster uninstall-host ## Full reversal: cluster stacks then host config
+
+uninstall-cluster: ## Remove every in-cluster opt-in stack (Tier 7-11)
+	@printf "$(YEL)── uninstall: cluster stacks ──$(NC)\n"
+	-@scripts/chaos-install.sh --uninstall 2>/dev/null || true
+	-@scripts/eso-install.sh --uninstall 2>/dev/null || true
+	-@scripts/falco-install.sh --uninstall 2>/dev/null || true
+	-@scripts/security-scan.sh uninstall 2>/dev/null || true
+	-@scripts/opencost-install.sh --uninstall 2>/dev/null || true
+	-@scripts/cosign-setup.sh remove-policy 2>/dev/null || true
+	-@scripts/kyverno-install.sh --uninstall 2>/dev/null || true
+	-@scripts/flux-install.sh --uninstall 2>/dev/null || true
+	@printf "$(GREEN)Cluster stacks removed. Kind cluster itself: make kind-down$(NC)\n"
+
+uninstall-host: ## Revert host config (slice + sysctl + udev). GRUB + swap kept.
+	@printf "$(RED)── uninstall: host config ──$(NC)\n"
 	sudo rm -f /etc/sysctl.d/99-ngolacloud-dev.conf
 	sudo rm -f /etc/modules-load.d/ngolacloud-dev.conf
 	sudo rm -f /etc/udev/rules.d/60-ioschedulers.rules

@@ -1,0 +1,98 @@
+---
+# =============================================================================
+# .github/workflows/release.yml — tag v* → GitHub Release with notes
+# =============================================================================
+# Triggered on annotated tag push (`git push origin v1.0.0`). Extracts the
+# matching entry from CHANGELOG.md, creates a GitHub Release, attaches:
+#
+#   • SBOM (SPDX JSON) generated fresh by trivy
+#   • Tarball of the repo at the tagged commit
+#
+# Requires the tag to follow `v<major>.<minor>.<patch>` (no `v0.10.0-rc1`).
+# =============================================================================
+name: release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.0.0)'
+        required: true
+
+permissions:
+  contents: write          # create release + upload assets
+
+jobs:
+  release:
+    name: cut release ${{ github.ref_name || inputs.tag }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout (deep — need full history for tag → commit lookup)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag name
+        id: tag
+        run: |
+          TAG="${{ github.ref_name || inputs.tag }}"
+          echo "name=$TAG" >> "$GITHUB_OUTPUT"
+          # Strip the leading 'v' for CHANGELOG lookup
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.tag.outputs.version }}"
+          # CHANGELOG entries look like:  ## [0.10.0] — 2026-05-19 ...
+          # Grab everything from this version's heading until the next ## [...
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" {capture=1; print; next}
+            capture && /^## \[/ {exit}
+            capture {print}
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::no CHANGELOG entry found for [$VERSION]"
+            exit 1
+          fi
+          echo "Release notes ($VERSION):"
+          cat release-notes.md
+          {
+            echo "body<<EOF_NOTES"
+            cat release-notes.md
+            echo "EOF_NOTES"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate SBOM (SPDX-JSON)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: spdx-json
+          output: sbom-${{ steps.tag.outputs.name }}.spdx.json
+
+      - name: Create source tarball
+        run: |
+          # Reproducible-ish: pin mtime, sort entries, no owner/group
+          git archive --format=tar.gz \
+            --prefix="ngolacloud-dev-setup-${{ steps.tag.outputs.version }}/" \
+            --output="ngolacloud-dev-setup-${{ steps.tag.outputs.name }}.tar.gz" \
+            "${{ steps.tag.outputs.name }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.tag.outputs.name }}
+          body: ${{ steps.notes.outputs.body }}
+          files: |
+            sbom-${{ steps.tag.outputs.name }}.spdx.json
+            ngolacloud-dev-setup-${{ steps.tag.outputs.name }}.tar.gz
+          draft: false
+          # Don't pre-release v0.x — they're already non-prod milestones,
+          # the SemVer < 1.0 communicates that.
+          prerelease: false

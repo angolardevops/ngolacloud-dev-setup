@@ -22,6 +22,53 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-05-19  — Tier 12 (consolidation: tests, CI E2E, release automation)
+
+This is the **stabilization release** marking the lab as feature-complete.
+No new capabilities vs v0.10.0 — instead, the surrounding scaffolding
+to keep the lab working long after the initial author moves on:
+
+### Added
+- **Molecule scenario for `system_tuning`**
+  (`ansible/roles/system_tuning/molecule/default/`) — reference
+  implementation for role-level testing. docker driver, privileged
+  Ubuntu 24.04 container, testinfra verifier with 7 test functions
+  asserting sysctl/modules/udev/GRUB/swap/fstab/THP end-state.
+  `make molecule-test` runs the full lifecycle. README documents how
+  to clone the pattern to the other 7 roles.
+- **E2E smoke workflow** (`.github/workflows/smoke.yml`) — weekly +
+  on path changes. Full happy path on a fresh ubuntu-24.04 runner:
+  validate → setup-check → kind-up → Cilium install → nginx canary
+  deploy + Service exposure via kube-proxy replacement → health-check.
+  Diagnostics dump on failure.
+- **Release automation** (`.github/workflows/release.yml`) — tag push
+  `v*` → extract CHANGELOG entry → generate fresh SBOM via Trivy →
+  source tarball → publish GitHub Release with notes + assets.
+  `workflow_dispatch` supports manual re-runs.
+- **`make uninstall` revamp** — now composed of two stages:
+    * `uninstall-cluster` — removes all Tier 7-11 in-cluster stacks
+      (chaos / eso / falco / trivy / kyverno / cosign-policy / opencost
+      / flux) idempotently, never fails if a stack wasn't installed
+    * `uninstall-host` — removes slice + sysctl override + udev
+      rule + docker drop-in (unchanged from v0.10.0). Keeps GRUB +
+      swap (documented manual reversal)
+- `make molecule-test`, `uninstall-cluster`, `uninstall-host`
+  Makefile targets (3 new).
+
+### Known limitations
+- Molecule coverage is **1 role of 8** — operator pattern, the rest
+  are TODO (each role takes ~30-45 min to wrap)
+- Smoke workflow doesn't run `make setup` for real on the runner
+  (would need privileged systemd + reboot for GRUB to apply) — only
+  `setup-check` + kind-up are exercised
+- The release workflow expects CHANGELOG entries in the format
+  `## [X.Y.Z] — date — title` (Keep-a-Changelog dialect)
+
+### Migration from v0.10.0
+- No breaking changes
+- The split `uninstall-cluster` / `uninstall-host` keeps backward
+  compatibility — old `make uninstall` still works (now calls both)
+
 ## [0.10.0] — 2026-05-19  — Tier 11 (resilience + secret sync + SLSA L3)
 
 ### Added
