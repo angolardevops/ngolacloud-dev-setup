@@ -49,7 +49,12 @@ fi
 if systemctl show ngolacloud-dev.slice -p MemoryMax --value 2>/dev/null | grep -q '^[0-9]'; then
   max_bytes=$(systemctl show ngolacloud-dev.slice -p MemoryMax --value)
   max_gb=$((max_bytes / 1024 / 1024 / 1024))
-  used_bytes=$(systemctl show ngolacloud-dev.slice -p MemoryCurrent --value 2>/dev/null || echo 0)
+  # MemoryCurrent prints "[not set]" until the slice has at least one
+  # live process attached (systemd starts the cgroup counter on first
+  # attach). Coerce non-numeric values to 0 so the awk division below
+  # doesn't crash with a literal "[not set]" in the expression.
+  used_bytes=$(systemctl show ngolacloud-dev.slice -p MemoryCurrent --value 2>/dev/null)
+  [[ "$used_bytes" =~ ^[0-9]+$ ]] || used_bytes=0
   used_gb=$(awk "BEGIN {printf \"%.1f\", $used_bytes/1024/1024/1024}")
   row "Resource Slice" ok "${max_gb}G limit, ${used_gb}G used"
 else

@@ -39,6 +39,20 @@
   notify: Reload systemd
   tags: [slice, systemd]
 
+# systemd doesn't auto-create /etc/systemd/system/<unit>.service.d/ for
+# drop-ins — the directory only appears if a package previously shipped
+# a drop-in. On a fresh Docker install via the official apt repo, there's
+# no drop-in dir, so the copy task below would fail with "Destination
+# directory ... does not exist". Create it explicitly first.
+- name: Slice — ensure docker.service.d drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  tags: [slice, systemd]
+
 - name: Slice — docker.service drop-in joining ngolacloud-dev.slice
   ansible.builtin.copy:
     dest: /etc/systemd/system/docker.service.d/slice.conf

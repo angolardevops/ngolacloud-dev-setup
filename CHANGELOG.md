@@ -22,6 +22,21 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [1.2.5] — 2026-05-20  — Patch: docker.service.d drop-in + health crash
+
+### Fixed
+- **`resource_slicing` role aborted** at the docker.service drop-in
+  copy: *"Destination directory /etc/systemd/system/docker.service.d
+  does not exist"*. systemd doesn't auto-create per-unit `.d/`
+  directories; a fresh Docker install via the official apt repo
+  doesn't ship one. Added an explicit `file: state=directory` step
+  before the drop-in copy. Re-running `make setup` now reaches the
+  end and the slice/docker wiring lands.
+- **`make health` crashed** with `awk: syntax error  [not set]/1024…`
+  whenever `MemoryCurrent` returned the literal string `[not set]`
+  (systemd's placeholder for an inactive cgroup counter). Coerce
+  non-numeric values to 0 before passing to awk.
+
 ## [1.2.4] — 2026-05-20  — Patch: Zorin preflight + dry-run cleanliness
 
 ### Fixed
