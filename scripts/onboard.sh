@@ -110,6 +110,23 @@ fi
 # ── Phase 5: kind-up ──────────────────────────────────────────────────────
 PHASE="5/7 kind-up"
 banner "Phase 5/7 — Kind cluster + Cilium${SKIP_OBS:+ (no observability)}"
+
+# Gate: kind-up needs helm + kubectl + kind. If setup was skipped or
+# kind_tools role didn't install them, fail fast with an actionable
+# message rather than dying inside kind-up.sh's ensure_bin check.
+missing_bins=()
+for b in helm kubectl kind; do
+  command -v "$b" >/dev/null 2>&1 || missing_bins+=("$b")
+done
+if [ ${#missing_bins[@]} -gt 0 ]; then
+  log_error "kind-up prerequisites missing: ${missing_bins[*]}"
+  log_info  "If you declined Phase 3, recover with one of:"
+  log_info  "  • make setup TAGS=kind       (install just helm/kustomize/k9s/stern via Ansible)"
+  log_info  "  • make setup                  (full host setup, ~10 min)"
+  log_info  "Then re-run: scripts/onboard.sh --yes --no-reboot"
+  exit 3
+fi
+
 if confirm "Run kind-up now?"; then
   obs_flag=""
   [ "$SKIP_OBS" -ne 1 ] && obs_flag="--with-observability"
