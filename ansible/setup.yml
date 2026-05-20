@@ -19,6 +19,15 @@
   become: true
   gather_facts: true
 
+  # The play runs with become:true, so `ansible_user_id` resolves to
+  # 'root' — never what user-tooling tasks want (rustup, krew, docker
+  # group, libvirt group all need the INVOKING human). sudo always
+  # exports SUDO_USER; fall back to direct USER env only when running
+  # as a non-root login (rare for this playbook).
+  vars:
+    invoking_user: "{{ ansible_env.SUDO_USER | default(ansible_env.USER, true) }}"
+    invoking_user_home: "/home/{{ invoking_user }}"
+
   pre_tasks:
     # ── Pre-flight: refuse to run on a host that doesn't match the
     #    assumptions baked into the roles. Cheap to check, expensive to

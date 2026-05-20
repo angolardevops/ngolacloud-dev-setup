@@ -183,9 +183,9 @@
 # ── krew (kubectl plugin manager) — runs as the invoking user ─────────────
 - name: Krew — check user install
   ansible.builtin.stat:
-    path: "/home/{{ ansible_user_id }}/.krew/bin/kubectl-krew"
+    path: "{{ invoking_user_home }}/.krew/bin/kubectl-krew"
   register: krew_stat
-  when: ansible_user_id != 'root'
+  when: invoking_user != "root"
   tags: [kind]
 
 - name: Krew — download installer tarball
@@ -193,11 +193,11 @@
     url: "https://github.com/kubernetes-sigs/krew/releases/download/v{{ krew_version }}/krew-linux_amd64.tar.gz"
     dest: "/tmp/krew-v{{ krew_version }}.tar.gz"
     mode: '0644'
-    owner: "{{ ansible_user_id }}"
-  become_user: "{{ ansible_user_id }}"
+    owner: "{{ invoking_user }}"
+  become_user: "{{ invoking_user }}"
   become: true
   when:
-    - ansible_user_id != 'root'
+    - invoking_user != "root"
     - not krew_stat.stat.exists
   tags: [kind]
 
@@ -207,11 +207,11 @@
     cd /tmp
     tar -xzf krew-v{{ krew_version }}.tar.gz
     ./krew-linux_amd64 install krew
-  become_user: "{{ ansible_user_id }}"
+  become_user: "{{ invoking_user }}"
   become: true
   args:
-    creates: "/home/{{ ansible_user_id }}/.krew/bin/kubectl-krew"
-  when: ansible_user_id != 'root'
+    creates: "{{ invoking_user_home }}/.krew/bin/kubectl-krew"
+  when: invoking_user != "root"
   tags: [kind]
 
 # ── Post-condition verification ───────────────────────────────────────────

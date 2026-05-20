@@ -76,13 +76,13 @@
 # run without sudo. New shell session needed for the change to apply.
 - name: KVM — add user to libvirt + kvm groups
   ansible.builtin.user:
-    name: "{{ ansible_user_id }}"
+    name: "{{ invoking_user }}"
     groups: "{{ item }}"
     append: true
   loop:
     - libvirt
     - kvm
-  when: ansible_user_id != 'root'
+  when: invoking_user != "root"
   tags: [kvm]
 
 # ── 4) Default libvirt network (192.168.122.0/24) — autostart ─────────────
@@ -147,7 +147,7 @@
   ansible.builtin.debug:
     msg:
       - "KVM acceleration: {{ kvm_ok.stdout | regex_search('.*KVM acceleration.*') }}"
-      - "User {{ ansible_user_id }} is in libvirt + kvm groups (log out/in to take effect)"
+      - "User {{ invoking_user }} is in libvirt + kvm groups (log out/in to take effect)"
       - "Images dir: /var/lib/libvirt/images/ngolacloud"
       - "Next: ngolacloud infra apply -f kvm/staging-cluster.toml"
   tags: [kvm, verify]

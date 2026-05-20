@@ -22,6 +22,25 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [1.2.8] — 2026-05-20  — Patch: invoking_user (rustup, krew, docker/libvirt groups)
+
+### Fixed
+- **User-tooling roles wrote to `/home/root`**, which doesn't exist
+  (root's home is `/root`). The play has `become: true`, so
+  `ansible_user_id` resolves to `root` — but `rust_toolchain`,
+  `kind_tools`, `kvm_host` and `docker_engine` all wanted the
+  *invoking human* (rustup binaries, krew, daemon.json owner, group
+  memberships). First crash was
+  `rustup default stable → /home/root/.cargo/bin/rustup: No such file or directory`.
+- Introduced a play-level `invoking_user` (prefers `SUDO_USER` env,
+  falls back to `USER`) and `invoking_user_home = /home/{user}`.
+- Replaced every `ansible_user_id` reference in user-tooling roles
+  with `invoking_user`, including `when: ansible_user_id != 'root'`
+  gates (which were always-false because the effective user *is*
+  root — the gate was a no-op that quietly skipped adding the human
+  to the docker/libvirt groups).
+- Affected roles: rust_toolchain, kind_tools, kvm_host, docker_engine.
+
 ## [1.2.7] — 2026-05-20  — Patch: docker_engine self-heals broken docker.list
 
 ### Fixed

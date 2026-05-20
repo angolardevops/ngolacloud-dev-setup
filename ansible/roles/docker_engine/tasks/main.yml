@@ -179,10 +179,10 @@
 # ── 6) Add current user to docker group (so kubectl/kind run without sudo) ─
 - name: Docker — add invoking user to docker group
   ansible.builtin.user:
-    name: "{{ ansible_user_id }}"
+    name: "{{ invoking_user }}"
     groups: docker
     append: true
-  when: ansible_user_id != 'root'
+  when: invoking_user != "root"
   tags: [docker]
 
 # ── 7) Post-condition verification ────────────────────────────────────────
