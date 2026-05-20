@@ -22,6 +22,19 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [1.2.6] — 2026-05-20  — Patch: docker.list single-line apt entry
+
+### Fixed
+- **`Apt update` handler failed** with
+  `E: Malformed entry 1 in list file /etc/apt/sources.list.d/docker.list ([option] unparsable)`
+  whenever the `docker_engine` role ran. The `content: |` literal
+  block scalar split the `deb [arch=… signed-by=…] <uri> <suite>`
+  entry across three physical lines; apt only parses one-liner
+  entries and breaks on the embedded newline inside `[options]`.
+  Switched to `content: >-` (folded scalar) which collapses to a
+  single line in the rendered file. Validated via Python YAML loader:
+  `chr(10)` count = 0 in the rendered string.
+
 ## [1.2.5] — 2026-05-20  — Patch: docker.service.d drop-in + health crash
 
 ### Fixed

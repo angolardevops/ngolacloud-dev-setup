@@ -59,14 +59,22 @@
 
 # Zorin 18 is Ubuntu 24.04 ("noble") under the hood — pin to noble
 # explicitly because the Docker repo doesn't ship a "zorin" codename.
+#
+# CRITICAL: apt requires the full `deb [options] <uri> <suite> <component>`
+# entry on a SINGLE physical line. Any newline inside `[options]` makes
+# apt-get update bail with:
+#   E: Malformed entry N in list file .../docker.list ([option] unparsable)
+# A YAML `|` literal block keeps every line break — wrong here. Use the
+# folded scalar `>-` and a single trailing space-separator so the
+# rendered file is one line.
 - name: Docker — add apt source (pinned to ubuntu/noble)
   ansible.builtin.copy:
     dest: /etc/apt/sources.list.d/docker.list
     mode: '0644'
-    content: |
+    content: >-
       deb [arch={{ ansible_architecture | regex_replace('x86_64', 'amd64') }}
-       signed-by=/etc/apt/keyrings/docker.asc]
-       https://download.docker.com/linux/ubuntu noble stable
+      signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/ubuntu noble stable
   notify: Apt update
   tags: [docker]
 
