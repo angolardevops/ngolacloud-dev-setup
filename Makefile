@@ -44,7 +44,9 @@ endif
         trivy-install kube-bench security-report security-uninstall \
         falco-install falco-test falco-tail falco-uninstall \
         opencost-install opencost-report opencost-ui opencost-uninstall \
-        security-stack
+        security-stack \
+        cosign-install cosign-keygen cosign-sign cosign-verify \
+        cosign-policy-apply cosign-policy-remove supply-chain-stack
 
 .DEFAULT_GOAL := help
 
@@ -223,6 +225,29 @@ opencost-uninstall: ## Remove opencost
 	@scripts/opencost-install.sh --uninstall
 
 security-stack: kyverno-install trivy-install falco-install opencost-install ## Install ALL Tier 9 tools (Kyverno + Trivy + Falco + opencost)
+
+# ──────────────────────────────────────────────────────────────────────────
+# Tier 10 — Supply chain (cosign + verifyImages + SBOM)
+# ──────────────────────────────────────────────────────────────────────────
+cosign-install: ## Install cosign CLI
+	@scripts/cosign-setup.sh install
+
+cosign-keygen: ## Generate Cosign key-pair in ~/.config/cosign/
+	@scripts/cosign-setup.sh keygen
+
+cosign-sign: ## Sign an image (keyless). Usage: make cosign-sign IMAGE=ghcr.io/foo/bar:1.0
+	@scripts/cosign-setup.sh sign $(IMAGE)
+
+cosign-verify: ## Verify an image's signature. Usage: make cosign-verify IMAGE=...
+	@scripts/cosign-setup.sh verify $(IMAGE)
+
+cosign-policy-apply: ## kubectl apply the verifyImages ClusterPolicy (Audit mode)
+	@scripts/cosign-setup.sh apply-policy
+
+cosign-policy-remove: ## kubectl delete the verifyImages ClusterPolicy
+	@scripts/cosign-setup.sh remove-policy
+
+supply-chain-stack: cosign-install cosign-policy-apply ## Install supply-chain trust gate
 
 uninstall: ## Revert as much as possible (slice + sysctl override + daemon.json)
 	@printf "$(RED)── uninstall ──$(NC)\n"

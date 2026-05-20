@@ -22,6 +22,32 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-05-19  — Tier 10 (supply-chain trust)
+
+### Added
+- **Cosign** (`scripts/cosign-setup.sh`) — install + keygen + sign
+  (keyless default, key-based fallback) + verify (auto-detects mode).
+  Targets v2.4.1.
+- **Kyverno verifyImages ClusterPolicy**
+  (`k8s/supply-chain/verify-images-policy.yaml`) — rejects pods whose
+  images lack a Sigstore-verifiable signature from
+  `https://github.com/angolardevops/.*`. Audit mode by default; flip
+  to Enforce via kubectl patch. Excludes system namespaces.
+- **Trivy CI gate** (`.github/workflows/trivy.yml`) — three independent
+  scans on every PR + push + weekly: filesystem (secrets + deps),
+  config (k8s/Dockerfile/Helm misconfig), SBOM (SPDX 90-day artifact).
+  HIGH+ severity blocks merge. SARIF uploaded to GitHub code scanning.
+- **Falcosidekick → Loki** — Falco alerts ship to Loki tenant=falco
+  alongside stdout. Falco events dashboard (Grafana 11914) auto-installed.
+- 7 new `make` targets: `cosign-{install,keygen,sign,verify}`,
+  `cosign-policy-{apply,remove}`, `supply-chain-stack`.
+- ADR-0009: Supply chain trust — Cosign + Trivy CI + Kyverno
+  verifyImages.
+
+### Changed
+- `kind/observability-values.yaml` adds Falco events Grafana dashboard
+  (gnetId 11914).
+
 ## [0.8.0] — 2026-05-19  — Tier 9 (security & cost defence-in-depth)
 
 ### Added

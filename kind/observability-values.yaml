@@ -98,6 +98,10 @@ grafana:
         gnetId: 13407   # Loki dashboard quick search
         revision: 1
         datasource: Loki
+      falco-events:
+        gnetId: 11914   # Falco events from Loki (tenant=falco)
+        revision: 1
+        datasource: Loki
   # Add Loki as a second datasource alongside the auto-configured Prometheus.
   additionalDataSources:
     - name: Loki

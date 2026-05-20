@@ -1,0 +1,107 @@
+---
+# =============================================================================
+# .github/workflows/trivy.yml — PR-time supply-chain gate
+# =============================================================================
+# Shift-left companion to the Trivy Operator (which scans running images).
+# Three independent scans on every PR + push to main:
+#
+#   1. fs       — filesystem scan of the repo (catches secrets, vulnerable
+#                 deps in lockfiles BEFORE we even build)
+#   2. config   — IaC scan of Kubernetes YAMLs + Dockerfiles + Helm values
+#                 (misconfigurations like runAsRoot, no resource limits)
+#   3. sbom     — generate SBOM in SPDX format, upload as artifact
+#                 (provenance trail for downstream auditors)
+#
+# All three gate on HIGH+ severity by default. Set ALLOW_MEDIUM=1 to widen.
+# =============================================================================
+name: trivy
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Weekly re-scan of main even without code changes — catches CVEs
+    # disclosed against pinned-but-fine versions.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write   # upload SARIF to GitHub code scanning
+
+jobs:
+  fs-scan:
+    name: filesystem scan (secrets + deps)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy fs scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: 1
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-fs.sarif
+
+      - name: Upload SARIF to GitHub code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+
+  config-scan:
+    name: IaC misconfig scan (k8s + Dockerfile + Helm)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy config scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: 1
+          format: sarif
+          output: trivy-config.sarif
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-config.sarif
+          category: trivy-config
+
+  sbom:
+    name: generate SPDX SBOM
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy SBOM
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: spdx-json
+          output: sbom.spdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom.spdx.json
+          retention-days: 90

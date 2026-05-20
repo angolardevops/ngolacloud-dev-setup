@@ -1,0 +1,87 @@
+---
+# =============================================================================
+# k8s/supply-chain/verify-images-policy.yaml — Kyverno verifyImages
+# =============================================================================
+# Refuses to admit pods whose container images haven't been signed by one
+# of the trusted Cosign keys (or, with keyless, by an identity issued by
+# Sigstore's Rekor transparency log).
+#
+# Three modes — uncomment exactly ONE attestor block per environment:
+#
+#   A. KEY-BASED      Pin a specific public key bytes. Simple, offline.
+#                     Use for air-gapped clusters where Rekor isn't reachable.
+#
+#   B. KEYLESS        Trust any signature whose certificate's identity
+#                     matches the regex below (e.g. github.com/angolardevops/*
+#                     workflows). Modern, no key rotation overhead, ties
+#                     signatures to a verifiable build identity in Rekor.
+#
+#   C. ATTESTATION    Also require an SLSA provenance attestation (not
+#                     just a signature). Sets the bar higher: only images
+#                     built by a specific GitHub Actions workflow pass.
+#
+# Lab default: keyless mode targeting angolardevops/ Actions workflows.
+# Disable enforcement by patching validationFailureAction → Audit.
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-signatures
+  annotations:
+    policies.kyverno.io/title: Verify Image Signatures (Cosign / Sigstore)
+    policies.kyverno.io/category: Supply Chain · SLSA L2+
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Every container image must be signed by a recognised identity.
+      Defaults to keyless verification against Sigstore Rekor —
+      acceptable signer identities are GitHub Actions OIDC tokens
+      from the angolardevops/* repos. Switch to key-based for
+      air-gapped clusters.
+spec:
+  validationFailureAction: Audit       # flip to Enforce when ready
+  background: false
+  webhookTimeoutSeconds: 30
+  failurePolicy: Fail
+  rules:
+    - name: verify-ngolacloud-images
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      # Don't try to verify upstream / system images — they're allowed by
+      # default but separately gated by the disallow-latest-tag policy.
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - cilium-system
+                - kyverno
+                - observability
+                - trivy-system
+                - falco
+                - flux-system
+                - opencost
+                - security
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/angolardevops/*"
+            - "registry.ngolacloud.ao/*"
+            - "ngolacloud/*"
+          # ─── B. KEYLESS (default) ─────────────────────────────────────
+          attestors:
+            - entries:
+                - keyless:
+                    subject: "https://github.com/angolardevops/*"
+                    issuer: "https://token.actions.githubusercontent.com"
+                    rekor:
+                      url: "https://rekor.sigstore.dev"
+          # ─── A. KEY-BASED (alternative — comment B + uncomment A) ──────
+          # attestors:
+          #   - entries:
+          #       - keys:
+          #           publicKeys: |-
+          #             -----BEGIN PUBLIC KEY-----
+          #             ... (cosign generate-key-pair output) ...
+          #             -----END PUBLIC KEY-----

@@ -64,13 +64,25 @@ resources:
     cpu: "1000m"
     memory: "1Gi"
 
-# Falcosidekick — minimal config, stdout only.
+# Falcosidekick — alert router. Ships Falco alerts to Loki (visible in
+# the existing Grafana) AND to stdout (kubectl logs as fallback).
+# Loki URL points at the loki-stack service installed by kind-up.sh
+# --with-observability; if Loki isn't deployed, falcosidekick falls back
+# silently to stdout.
 falcosidekick:
   enabled: true
   replicaCount: 1
   config:
+    debug: false
     stdout:
       minimumpriority: "warning"
+    loki:
+      hostport: "http://loki-stack.observability.svc.cluster.local:3100"
+      endpoint: "/loki/api/v1/push"
+      tenant: "falco"
+      minimumpriority: "notice"      # ship everything ≥ notice to Loki
+      checkcert: false
+      extralabels: "source,priority,rule"
 
 # Don't run on the control plane (Kind's CP is a thin container).
 nodeSelector:
