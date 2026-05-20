@@ -1,0 +1,112 @@
+---
+# =============================================================================
+# Role: wireguard (opt-in — Tier 6 remote access)
+# =============================================================================
+# Sets up a WireGuard tunnel from the workstation to a remote endpoint
+# (typically the Hetzner ngolacloud-prod gateway). Tunnel is one-way:
+# laptop → remote; the remote peer's pubkey must already be known.
+#
+# Tagged `never` so plain `make setup` skips it. Pull explicitly with:
+#
+#     make setup TAGS=wireguard
+#
+# Per-environment knobs live in inventory.ini under the [ngolacloud_dev:vars]
+# block — set wg_remote_endpoint, wg_remote_pubkey, wg_allowed_ips, etc.
+# =============================================================================
+
+- name: WireGuard — apt install
+  ansible.builtin.apt:
+    name:
+      - wireguard
+      - wireguard-tools
+      - resolvconf            # wg-quick uses this to push DNS
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags: [wireguard]
+
+# ── Key material — generate ONCE, never overwrite ─────────────────────────
+- name: WireGuard — config directory
+  ansible.builtin.file:
+    path: /etc/wireguard
+    state: directory
+    mode: '0700'
+    owner: root
+    group: root
+  tags: [wireguard]
+
+- name: WireGuard — check existing private key
+  ansible.builtin.stat:
+    path: "/etc/wireguard/{{ wg_interface }}.privkey"
+  register: wg_privkey
+  tags: [wireguard]
+
+- name: WireGuard — generate private key (once)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    umask 077
+    wg genkey > /etc/wireguard/{{ wg_interface }}.privkey
+    wg pubkey < /etc/wireguard/{{ wg_interface }}.privkey \
+              > /etc/wireguard/{{ wg_interface }}.pubkey
+  when: not wg_privkey.stat.exists
+  tags: [wireguard]
+
+- name: WireGuard — permissions on key material
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: '0600'
+    owner: root
+    group: root
+  loop:
+    - "/etc/wireguard/{{ wg_interface }}.privkey"
+    - "/etc/wireguard/{{ wg_interface }}.pubkey"
+  tags: [wireguard]
+
+# ── Render the wg-quick config from a template ────────────────────────────
+- name: WireGuard — read private key
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/{{ wg_interface }}.privkey"
+  register: wg_priv_b64
+  no_log: true
+  tags: [wireguard]
+
+- name: WireGuard — write /etc/wireguard/{{ wg_interface }}.conf
+  ansible.builtin.template:
+    src: wg.conf.j2
+    dest: "/etc/wireguard/{{ wg_interface }}.conf"
+    mode: '0600'
+    owner: root
+    group: root
+  vars:
+    wg_private_key: "{{ wg_priv_b64.content | b64decode | trim }}"
+  no_log: true
+  notify: Restart wg-quick
+  tags: [wireguard]
+
+# ── Enable + start ────────────────────────────────────────────────────────
+- name: WireGuard — enable wg-quick@{{ wg_interface }}
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ wg_interface }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: wg_autostart | default(true)
+  tags: [wireguard]
+
+# ── Helpful summary ───────────────────────────────────────────────────────
+- name: WireGuard — read public key for the operator
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/{{ wg_interface }}.pubkey"
+  register: wg_pub_b64
+  tags: [wireguard, verify]
+
+- name: WireGuard — print pubkey + next steps
+  ansible.builtin.debug:
+    msg:
+      - "Local interface: {{ wg_interface }}"
+      - "Local pubkey:    {{ wg_pub_b64.content | b64decode | trim }}"
+      - "Local address:   {{ wg_local_address }}"
+      - "Remote endpoint: {{ wg_remote_endpoint }}"
+      - "Next step: register the pubkey above on the remote peer's"
+      - "  [Peer] block. Run `wg show {{ wg_interface }}` to verify the handshake."
+  tags: [wireguard, verify]

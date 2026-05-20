@@ -1,0 +1,87 @@
+---
+# =============================================================================
+# .github/workflows/lint.yml — pre-merge lint gate
+# =============================================================================
+# Runs on every PR + push to main. Mirrors `make lint` locally:
+#   • ansible-lint over playbook + roles
+#   • shellcheck over scripts/
+#   • yamllint over ansible/ + kind/ + kvm/
+#
+# Fast (< 1 min) and idempotent — no sudo, no apt, no host changes.
+# =============================================================================
+name: lint
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # Manually re-run from the Actions tab when needed.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint (ansible + shell + yaml)
+    runs-on: ubuntu-24.04
+    # 5 min cap — these linters complete in <60s; anything longer means a
+    # network hang or a runaway expansion.
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install lint tooling
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          # Pin to stable releases — surprise upgrades have broken CI here
+          # before (ansible-lint 25.x renamed rules without warning).
+          pip install \
+              'ansible-core==2.18.*' \
+              'ansible-lint==25.*' \
+              'yamllint==1.37.*'
+          # shellcheck is pre-installed on ubuntu-24.04 runners; verify.
+          shellcheck --version | head -1
+
+      - name: Install Ansible collections (offline-friendly cache)
+        run: |
+          ansible-galaxy collection install community.general ansible.posix
+
+      - name: Ansible syntax-check
+        run: |
+          cd ansible
+          ansible-playbook -i inventory.ini setup.yml --syntax-check
+
+      - name: ansible-lint
+        run: |
+          cd ansible
+          ansible-lint --offline setup.yml roles/
+
+      - name: shellcheck (scripts/*.sh)
+        run: |
+          shellcheck -x scripts/*.sh
+
+      - name: yamllint (ansible/ kind/ kvm/)
+        run: |
+          yamllint -d "{extends: default, rules: \
+            {line-length: {max: 160}, \
+             document-start: disable, \
+             truthy: {check-keys: false}, \
+             indentation: {indent-sequences: false}}}" \
+            ansible/ kind/ kvm/
+
+      - name: Bash syntax (sanity)
+        run: |
+          for s in scripts/*.sh; do
+            bash -n "$s" || { echo "::error file=$s::bash syntax error"; exit 1; }
+          done

@@ -34,9 +34,10 @@ endif
 .PHONY: help setup setup-check setup-diff health reboot-if-needed \
         prune prune-aggressive uninstall \
         kind-up kind-up-recreate kind-down kind-down-deep kind-reset kind-load \
-        bench version \
+        bench version validate \
         lint lint-ansible lint-shell lint-yaml \
-        staging-up staging-down
+        staging-up staging-down \
+        wireguard-up
 
 .DEFAULT_GOAL := help
 
@@ -45,6 +46,9 @@ help: ## Show this help
 	@awk 'BEGIN{FS=":.*?## "}/^[a-zA-Z_-]+:.*?## /{printf "  $(GREEN)%-22s$(NC) %s\n",$$1,$$2}' $(MAKEFILE_LIST)
 	@printf "\n  Pass $(YEL)TAGS=foo,bar$(NC) to scope a run.\n"
 	@printf "  Pass $(YEL)VERBOSE=-vv$(NC) (or -vvv) for debug output.\n\n"
+
+validate: ## Pre-flight check (no sudo, no writes) — run BEFORE `make setup`
+	@scripts/validate-host.sh
 
 setup: ## Run the full Ansible playbook (host + slice + docker)
 	@printf "$(CYAN)── setup ──$(NC)\n"
@@ -129,6 +133,12 @@ staging-up: ## (placeholder) Spin up the nested KVM staging cluster
 staging-down: ## (placeholder) Tear down the nested KVM staging cluster
 	@command -v ngolacloud >/dev/null || { printf "$(RED)ngolacloud CLI not in PATH$(NC)\n"; exit 1; }
 	ngolacloud infra destroy -f kvm/staging-cluster.toml
+
+# ──────────────────────────────────────────────────────────────────────────
+# WireGuard (opt-in remote tunnel)
+# ──────────────────────────────────────────────────────────────────────────
+wireguard-up: ## Install + start WireGuard tunnel (configure via inventory.ini)
+	cd $(ANSIBLE_DIR) && ansible-playbook setup.yml $(ANSIBLE_FLAGS) --tags wireguard
 
 uninstall: ## Revert as much as possible (slice + sysctl override + daemon.json)
 	@printf "$(RED)── uninstall ──$(NC)\n"

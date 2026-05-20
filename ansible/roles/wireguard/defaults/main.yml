@@ -1,0 +1,25 @@
+---
+# Sane defaults — override per environment in inventory.ini under the
+# [ngolacloud_dev:vars] block. None of these expose secrets; the private
+# key is generated on first run and never logged.
+
+# Interface name (also the config file basename — keep short, no dots).
+wg_interface: wg-hetzner
+
+# Local tunnel address — pick something inside the remote's allowed CIDR.
+wg_local_address: "10.200.1.42/32"
+wg_local_dns: "1.1.1.1"
+
+# Listen port: 0 = ephemeral (NAT-friendly; recommended for laptops behind
+# corporate Wi-Fi). Set explicitly when this peer must be reachable.
+wg_listen_port: 0
+
+# Remote peer — REQUIRED. Defaults are placeholders that `wg-quick` will
+# refuse to use, so a misconfigured environment fails loudly instead of
+# silently building a broken tunnel.
+wg_remote_endpoint: "hetzner-gateway.ngolacloud.dev:51820"
+wg_remote_pubkey: "REPLACE_ME_WITH_REMOTE_PUBKEY"
+wg_allowed_ips: "10.200.0.0/16"
+wg_persistent_keepalive: 25
+
+wg_autostart: true

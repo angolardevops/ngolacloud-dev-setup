@@ -92,6 +92,10 @@
     - role: kvm_host
       tags: [kvm, never]
       # `never` means: only run when the tag is explicitly requested.
+    - role: wireguard
+      tags: [wireguard, never]
+      # Opt-in tunnel to a remote endpoint (typically Hetzner). Requires
+      # wg_remote_pubkey + wg_remote_endpoint set in inventory.ini.
 
   post_tasks:
     - name: Final — print summary
