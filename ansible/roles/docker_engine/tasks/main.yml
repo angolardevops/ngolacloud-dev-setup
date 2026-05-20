@@ -29,6 +29,32 @@
   tags: [docker]
 
 # ── 2) APT prerequisites for Docker repo ──────────────────────────────────
+#
+# Earlier versions of this role wrote docker.list with a YAML literal
+# block `content: |`, which produced a 3-line apt entry. apt-get update
+# rejects that with 'Malformed entry N ([option] unparsable)' and aborts
+# every subsequent apt task — including this one. We can't write the
+# correct (single-line) source first, because that task itself needs
+# `curl`/`gnupg` from apt-prerequisites. So: pre-emptively delete any
+# multi-line docker.list left behind by older runs. The current role
+# rewrites the file later with a folded scalar.
+- name: Docker — read existing docker.list to detect malformed multi-line entry
+  ansible.builtin.slurp:
+    src: /etc/apt/sources.list.d/docker.list
+  register: docker_list_b64
+  failed_when: false
+  changed_when: false
+  tags: [docker]
+
+- name: Docker — purge malformed docker.list from older buggy runs
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/docker.list
+    state: absent
+  when:
+    - docker_list_b64.content is defined
+    - ((docker_list_b64.content | b64decode).strip().split('\n') | length) > 1
+  tags: [docker]
+
 - name: Docker — apt prerequisites
   ansible.builtin.apt:
     name:

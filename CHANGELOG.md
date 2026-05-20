@@ -22,6 +22,20 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [1.2.7] — 2026-05-20  — Patch: docker_engine self-heals broken docker.list
+
+### Fixed
+- **`docker_engine` role aborted at first `apt:` task** if a previous
+  buggy run had left a 3-line `/etc/apt/sources.list.d/docker.list`.
+  v1.2.6 fixed the **writer** but the file is only rewritten *after*
+  the apt-prerequisites step — which itself crashes on the malformed
+  file (*"Malformed entry 1 … ([option] unparsable)"*). Re-running
+  `make setup` could never escape.
+- Added a defensive **pre-`apt`** pair of tasks that slurp the
+  current docker.list and `file: state=absent` it when more than
+  one non-empty line is detected. Self-heals on next run; idempotent
+  for hosts with a correct single-line file.
+
 ## [1.2.6] — 2026-05-20  — Patch: docker.list single-line apt entry
 
 ### Fixed
