@@ -121,17 +121,23 @@ ngolacloud-dev-setup/
 
 ### Opcional — para `make lint`
 
+Ubuntu 24.04 protege o Python do sistema (PEP 668). Usa `pipx`:
+
 ```bash
-sudo apt install shellcheck
-pip install ansible-lint yamllint
+sudo apt install -y shellcheck pipx
+pipx ensurepath && exec bash             # recarrega PATH
+pipx install ansible-lint
+pipx install yamllint
 ```
 
 ### Opcional — pre-commit hooks
 
 ```bash
-pip install pre-commit
-pre-commit install                     # roda em cada `git commit`
-pre-commit run --all-files             # roda agora contra todo o tree
+pipx install pre-commit
+cd ~/workspaces/delonix/ngolacloud-dev-setup
+pre-commit install                       # roda em cada `git commit`
+pre-commit install --hook-type commit-msg  # gate Conventional Commits
+pre-commit run --all-files               # valida o tree inteiro
 ```
 
 ### Opcional — encriptar secrets do repo com sops + age

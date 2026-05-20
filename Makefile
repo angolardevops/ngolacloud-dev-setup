@@ -130,15 +130,15 @@ bench: ## Run scripts/benchmark.sh (baseline timings)
 lint: lint-ansible lint-shell lint-yaml ## Run all linters (Ansible + shellcheck + yamllint)
 
 lint-ansible: ## ansible-lint over roles + playbook
-	@command -v ansible-lint >/dev/null || { printf "$(YEL)ansible-lint missing — pip install ansible-lint$(NC)\n"; exit 1; }
+	@command -v ansible-lint >/dev/null || { printf "$(YEL)ansible-lint missing — pipx install ansible-lint$(NC)\n"; exit 1; }
 	@cd $(ANSIBLE_DIR) && ansible-lint --offline setup.yml roles/
 
 lint-shell: ## shellcheck over scripts/*.sh
-	@command -v shellcheck >/dev/null || { printf "$(YEL)shellcheck missing — apt install shellcheck$(NC)\n"; exit 1; }
+	@command -v shellcheck >/dev/null || { printf "$(YEL)shellcheck missing — sudo apt install -y shellcheck$(NC)\n"; exit 1; }
 	@shellcheck -x scripts/*.sh
 
 lint-yaml: ## yamllint over ansible/ and kind/ + cloud-init
-	@command -v yamllint >/dev/null || { printf "$(YEL)yamllint missing — pip install yamllint$(NC)\n"; exit 1; }
+	@command -v yamllint >/dev/null || { printf "$(YEL)yamllint missing — pipx install yamllint$(NC)\n"; exit 1; }
 	@yamllint -d '{extends: default, rules: {line-length: {max: 140}, document-start: disable, truthy: {check-keys: false}}}' \
 		ansible/ kind/
 
@@ -299,7 +299,7 @@ resilience-stack: eso-with-vault chaos-apply ## Install Tier 11 (ESO + Vault + c
 # Tier 12 — quality (molecule tests; smoke/release run only in CI)
 # ──────────────────────────────────────────────────────────────────────────
 molecule-test: ## Run molecule tests for the system_tuning role
-	@command -v molecule >/dev/null || { printf "$(YEL)molecule missing — pip install 'molecule[docker]' molecule-plugins[docker] testinfra$(NC)\n"; exit 1; }
+	@command -v molecule >/dev/null || { printf "$(YEL)molecule missing — sudo apt install -y pipx && pipx ensurepath && pipx install 'molecule[docker]'$(NC)\n"; exit 1; }
 	cd ansible/roles/system_tuning && molecule test
 
 uninstall: uninstall-cluster uninstall-host ## Full reversal: cluster stacks then host config

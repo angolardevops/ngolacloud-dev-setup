@@ -108,7 +108,7 @@ Individual linters. Each requires its tool installed (warns and exits if missing
 
 ### `make molecule-test`
 
-Run molecule lifecycle for the `system_tuning` role (Docker driver). Requires `pip install 'molecule[docker]' molecule-plugins[docker] testinfra`.
+Run molecule lifecycle for the `system_tuning` role (Docker driver). Install via pipx (Ubuntu 24.04 enforces PEP 668): `sudo apt install -y pipx && pipx ensurepath && pipx install 'molecule[docker]'`.
 
 ### `make bench`
 

@@ -18,13 +18,24 @@ public CI fail**.
 
 ## Install (one-time per dev)
 
+Ubuntu 24.04 / Zorin 18 enforce PEP 668 — bare `pip install` is
+refused. Use **pipx** (each tool in its own venv; binary in `~/.local/bin/`):
+
 ```bash
-pip install --user pre-commit
+sudo apt install -y pipx
+pipx ensurepath && exec bash                # refresh PATH
+pipx install pre-commit
+
 cd ~/workspaces/delonix/ngolacloud-dev-setup
 pre-commit install                          # adds .git/hooks/pre-commit
 pre-commit install --hook-type commit-msg   # for Conventional Commits gate
 pre-commit run --all-files                  # validate the whole tree now
 ```
+
+`pipx` is also how you install `ansible-lint`, `yamllint`, `molecule` —
+every Python CLI that isn't part of the apt-managed system. **Never
+`pip install --break-system-packages`** — it silently corrupts apt's
+view of Python and breaks on the next system upgrade.
 
 Subsequent commits run the hooks automatically. Bypass (use sparingly):
 
