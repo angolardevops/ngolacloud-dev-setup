@@ -16,7 +16,7 @@ default_language_version:
 repos:
   # ── Hygiene ────────────────────────────────────────────────────────────
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -33,14 +33,14 @@ repos:
 
   # ── Shell ──────────────────────────────────────────────────────────────
   - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.10.0.1
+    rev: v0.11.0.1
     hooks:
       - id: shellcheck
         args: [-x]
 
   # ── YAML ───────────────────────────────────────────────────────────────
   - repo: https://github.com/adrienverge/yamllint
-    rev: v1.37.0
+    rev: v1.38.0
     hooks:
       - id: yamllint
         args:
@@ -50,7 +50,7 @@ repos:
 
   # ── Ansible ────────────────────────────────────────────────────────────
   - repo: https://github.com/ansible/ansible-lint
-    rev: v25.10.0
+    rev: v26.4.0
     hooks:
       - id: ansible-lint
         # Limit to the playbook + roles; the root files (Makefile, scripts)
@@ -60,7 +60,7 @@ repos:
 
   # ── Markdown ───────────────────────────────────────────────────────────
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.43.0
+    rev: v0.48.0
     hooks:
       - id: markdownlint
         # Don't fight long lines in ADRs (tables can be wide).

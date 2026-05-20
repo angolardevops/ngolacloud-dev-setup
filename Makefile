@@ -17,6 +17,7 @@ CYAN  := \033[0;36m
 GREEN := \033[0;32m
 RED   := \033[0;31m
 YEL   := \033[0;33m
+DIM   := \033[0;90m
 NC    := \033[0m
 
 ANSIBLE_DIR := ansible
@@ -51,7 +52,8 @@ endif
         eso-install eso-with-vault eso-demo eso-uninstall \
         chaos-install chaos-apply chaos-target chaos-status chaos-uninstall \
         resilience-stack \
-        uninstall-cluster uninstall-host molecule-test
+        uninstall-cluster uninstall-host molecule-test \
+        bootstrap-dev pre-commit-update direnv-allow
 
 .DEFAULT_GOAL := help
 
@@ -63,6 +65,75 @@ help: ## Show this help
 
 validate: ## Pre-flight check (no sudo, no writes) — run BEFORE `make setup`
 	@scripts/validate-host.sh
+
+# ──────────────────────────────────────────────────────────────────────────
+# Bootstrap dev environment — single command for a fresh laptop
+# ──────────────────────────────────────────────────────────────────────────
+bootstrap-dev: ## One-time: apt + pipx + pre-commit + direnv + hooks installed
+	@printf "$(CYAN)── bootstrap-dev — preparing a fresh workstation ──$(NC)\n"
+	@printf "$(DIM)Idempotent: re-running detects what's already there and skips ahead.$(NC)\n\n"
+
+	@# ── 1) apt packages (need sudo) ─────────────────────────────────
+	@printf "$(CYAN)[1/5]$(NC) apt: pipx + direnv + shellcheck + ansible + git\n"
+	@sudo apt-get update -qq
+	@sudo apt-get install -y -qq \
+		pipx \
+		direnv \
+		shellcheck \
+		ansible \
+		git \
+		curl \
+		jq \
+		make
+
+	@# ── 2) pipx PATH ─────────────────────────────────────────────────
+	@printf "$(CYAN)[2/5]$(NC) pipx ensurepath (idempotent)\n"
+	@pipx ensurepath >/dev/null
+
+	@# ── 3) pipx-installed Python CLIs ───────────────────────────────
+	@printf "$(CYAN)[3/5]$(NC) pipx install pre-commit + ansible-lint + yamllint\n"
+	@for tool in pre-commit ansible-lint yamllint; do \
+		if pipx list --short 2>/dev/null | grep -qw $$tool; then \
+			printf "  $(GREEN)✓$(NC) $$tool already installed\n"; \
+		else \
+			pipx install $$tool >/dev/null && printf "  $(GREEN)✓$(NC) $$tool installed\n"; \
+		fi; \
+	done
+
+	@# ── 4) ansible-galaxy collections (idempotent) ──────────────────
+	@printf "$(CYAN)[4/5]$(NC) ansible-galaxy: community.general + ansible.posix\n"
+	@ansible-galaxy collection install community.general ansible.posix >/dev/null 2>&1 \
+		&& printf "  $(GREEN)✓$(NC) collections installed\n"
+
+	@# ── 5) pre-commit + direnv local config ─────────────────────────
+	@printf "$(CYAN)[5/5]$(NC) pre-commit install + direnv allow\n"
+	@if [ -d .git ]; then \
+		~/.local/bin/pre-commit install --install-hooks >/dev/null 2>&1 || pre-commit install --install-hooks; \
+		~/.local/bin/pre-commit install --hook-type commit-msg >/dev/null 2>&1 || pre-commit install --hook-type commit-msg; \
+		printf "  $(GREEN)✓$(NC) pre-commit hooks installed (pre-commit + commit-msg)\n"; \
+	else \
+		printf "  $(YEL)!$(NC) skipped pre-commit install (not in a git repo)\n"; \
+	fi
+	@if [ -f .envrc ]; then \
+		direnv allow . >/dev/null 2>&1 && printf "  $(GREEN)✓$(NC) direnv approved .envrc\n" || \
+		printf "  $(YEL)!$(NC) direnv allow needs to run inside the dir (try: cd . && direnv allow)\n"; \
+	fi
+
+	@printf "\n$(GREEN)bootstrap-dev complete ✓$(NC)\n"
+	@printf "  Next:\n"
+	@printf "    $(CYAN)source ~/.bashrc$(NC)   (refresh PATH if pipx was just installed)\n"
+	@printf "    $(CYAN)make validate$(NC)       (preflight)\n"
+	@printf "    $(CYAN)make onboard$(NC)         (full setup → cluster → Grafana)\n"
+
+pre-commit-update: ## Refresh pre-commit hook pins to latest tagged releases
+	@command -v pre-commit >/dev/null || { printf "$(YEL)pre-commit missing — run 'make bootstrap-dev' first$(NC)\n"; exit 1; }
+	@pre-commit autoupdate
+	@printf "$(GREEN)pre-commit pins refreshed. Review .pre-commit-config.yaml diff before committing.$(NC)\n"
+
+direnv-allow: ## Approve the .envrc in this dir (alias for `direnv allow`)
+	@command -v direnv >/dev/null || { printf "$(YEL)direnv missing — run 'make bootstrap-dev' first$(NC)\n"; exit 1; }
+	@direnv allow .
+	@printf "$(GREEN).envrc approved$(NC)\n"
 
 onboard: ## One-shot: preflight + setup + kind-up (+obs) + bench + Grafana
 	@scripts/onboard.sh

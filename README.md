@@ -14,11 +14,20 @@ como ambiente de desenvolvimento `ngolacloud infra dev`. Foco em:
 ## Quickstart — one shot
 
 ```bash
-# Faz o lab inteiro do zero: preflight → setup → cluster → observability → Grafana
+# Passo 1 — UMA VEZ por máquina: prepara o cliente
+#   pipx + direnv + shellcheck + ansible + pre-commit hooks + direnv allow
+make bootstrap-dev
+
+# Passo 2 — o lab inteiro: preflight → setup → cluster → observability → Grafana
 make onboard
 ```
 
-`onboard` corre tudo guiado, pede confirmação em cada fase destrutiva.
+`bootstrap-dev` é **idempotente** e protege contra os 3 erros mais
+comuns: PEP 668 ao instalar Python tools (usa pipx automaticamente),
+direnv não autorizado, pre-commit hooks sem versão pinada. Re-correr é
+seguro — detecta o que já está instalado.
+
+`onboard` é o caminho feliz: pede confirmação em cada fase destrutiva.
 Para CI / unattended: `make onboard-yes`.
 
 ## Quickstart manual (passo-a-passo)
