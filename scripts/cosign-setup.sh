@@ -32,20 +32,24 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 
 COSIGN_VERSION="${COSIGN_VERSION:-2.4.1}"
 POLICY_FILE="$REPO_ROOT/k8s/supply-chain/verify-images-policy.yaml"
+POLICY_SLSA_FILE="$REPO_ROOT/k8s/supply-chain/verify-images-slsa-policy.yaml"
 KEY_DIR="${HOME}/.config/cosign"
 
 usage() {
   cat <<EOF
 Usage: $0 <action> [args]
 
-  install              Install cosign CLI v$COSIGN_VERSION to /usr/local/bin
-  keygen               Generate a key-pair in $KEY_DIR/
-  sign <image>         Sign keyless (browser OIDC prompt or CI token)
-  sign-key <image>     Sign with $KEY_DIR/cosign.key
-  verify <image>       Verify the signature (auto-detects mode)
-  apply-policy         kubectl apply -f k8s/supply-chain/verify-images-policy.yaml
-  remove-policy        Delete the policy
-  --help               Show this help
+  install                       Install cosign CLI v$COSIGN_VERSION
+  keygen                        Generate a key-pair in $KEY_DIR/
+  sign <image>                  Sign keyless (browser OIDC prompt or CI token)
+  sign-key <image>              Sign with $KEY_DIR/cosign.key
+  verify <image>                Verify the signature (auto-detects mode)
+  attest <image> <predicate>    Attach a SLSA-style attestation (keyless)
+  verify-attest <image>         Verify the SLSA attestation
+  apply-policy                  Apply verify-images Kyverno ClusterPolicy
+  apply-policy-slsa             Apply the SLSA-required policy (sig + attest)
+  remove-policy                 Delete both policies
+  --help                        Show this help
 EOF
 }
 
@@ -123,25 +127,67 @@ apply_policy() {
   log_info "applying verify-images ClusterPolicy (Audit mode)"
   kubectl apply -f "$POLICY_FILE"
   log_ok "policy active — see violations with: kubectl get policyreports -A"
-  log_info "flip to Enforce: kubectl patch cpol verify-image-signatures \\"
-  log_info "  --type='json' -p='[{\"op\":\"replace\",\"path\":\"/spec/validationFailureAction\",\"value\":\"Enforce\"}]'"
+}
+
+apply_policy_slsa() {
+  ensure_bin kubectl
+  if ! kubectl get crd clusterpolicies.kyverno.io >/dev/null 2>&1; then
+    log_error "Kyverno not installed — run 'make kyverno-install' first"
+    exit 2
+  fi
+  log_info "applying SLSA verify-images ClusterPolicy (sig + provenance attestation)"
+  kubectl apply -f "$POLICY_SLSA_FILE"
+  log_ok "SLSA policy active"
 }
 
 remove_policy() {
   kubectl delete -f "$POLICY_FILE" --ignore-not-found
-  log_ok "policy removed"
+  kubectl delete -f "$POLICY_SLSA_FILE" --ignore-not-found
+  log_ok "policies removed"
+}
+
+attest() {
+  local image="${1:-}" predicate="${2:-}"
+  [ -z "$image" ] || [ -z "$predicate" ] && {
+    log_error "usage: $0 attest <image> <predicate.json>"
+    exit 2
+  }
+  [ -f "$predicate" ] || { log_error "predicate file not found: $predicate"; exit 2; }
+  ensure_bin cosign
+  log_info "attaching SLSA predicate ($predicate) → $image (keyless)"
+  COSIGN_EXPERIMENTAL=1 cosign attest --yes \
+    --predicate "$predicate" \
+    --type slsaprovenance \
+    "$image"
+  log_ok "attestation attached; verify with: $0 verify-attest $image"
+}
+
+verify_attest() {
+  local image="${1:-}"
+  [ -z "$image" ] && { log_error "image ref required"; exit 2; }
+  ensure_bin cosign
+  log_info "verifying SLSA attestation: $image"
+  COSIGN_EXPERIMENTAL=1 cosign verify-attestation \
+    --certificate-identity-regexp 'https://github.com/angolardevops/.*' \
+    --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+    --type slsaprovenance \
+    "$image" >/dev/null
+  log_ok "SLSA attestation verified for $image"
 }
 
 action="${1:-}"
 shift || true
 case "$action" in
-  install)       install_cosign ;;
-  keygen)        keygen ;;
-  sign)          sign_keyless "$@" ;;
-  sign-key)      sign_key "$@" ;;
-  verify)        verify "$@" ;;
-  apply-policy)  apply_policy ;;
-  remove-policy) remove_policy ;;
-  ""|--help|-h)  usage ;;
+  install)            install_cosign ;;
+  keygen)             keygen ;;
+  sign)               sign_keyless "$@" ;;
+  sign-key)           sign_key "$@" ;;
+  verify)             verify "$@" ;;
+  attest)             attest "$@" ;;
+  verify-attest)      verify_attest "$@" ;;
+  apply-policy)       apply_policy ;;
+  apply-policy-slsa)  apply_policy_slsa ;;
+  remove-policy)      remove_policy ;;
+  ""|--help|-h)       usage ;;
   *) log_error "unknown action: $action"; usage; exit 2 ;;
 esac

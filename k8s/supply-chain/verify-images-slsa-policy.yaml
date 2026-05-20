@@ -1,0 +1,77 @@
+---
+# =============================================================================
+# k8s/supply-chain/verify-images-slsa-policy.yaml — Kyverno SLSA L3 gate
+# =============================================================================
+# Stricter sibling of verify-images-policy.yaml: requires not only a Cosign
+# signature but also a Sigstore-verifiable **SLSA provenance attestation**.
+#
+# Result: the cluster admits an image ONLY IF:
+#   1. A keyless Cosign signature exists (signer identity matches
+#      github.com/angolardevops/*)
+#   2. A `slsaprovenance` attestation exists, signed by the same identity,
+#      asserting WHICH GitHub Actions workflow built it
+#
+# This closes the supply-chain triangle: hygiene (Trivy) + provenance
+# (Cosign sig + attest). SLSA L3 in the formal taxonomy.
+#
+# Default Audit mode; flip to Enforce when CI is reliably producing
+# attestations (otherwise every deploy fails).
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-slsa-provenance
+  annotations:
+    policies.kyverno.io/title: Verify SLSA Provenance Attestation
+    policies.kyverno.io/category: Supply Chain · SLSA L3
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+spec:
+  validationFailureAction: Audit
+  background: false
+  webhookTimeoutSeconds: 30
+  failurePolicy: Fail
+  rules:
+    - name: require-slsa-attestation
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - cilium-system
+                - kyverno
+                - observability
+                - trivy-system
+                - falco
+                - flux-system
+                - opencost
+                - security
+                - external-secrets
+                - vault-dev
+                - chaos-mesh
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/angolardevops/*"
+            - "registry.ngolacloud.ao/*"
+            - "ngolacloud/*"
+          attestations:
+            - type: "https://slsa.dev/provenance/v0.2"
+              attestors:
+                - entries:
+                    - keyless:
+                        subject: "https://github.com/angolardevops/*"
+                        issuer: "https://token.actions.githubusercontent.com"
+                        rekor:
+                          url: "https://rekor.sigstore.dev"
+              conditions:
+                - all:
+                    # The builder MUST be a GitHub Actions hosted runner.
+                    # This pins the *build infrastructure*, not just the
+                    # workflow identity.
+                    - key: "{{ predicate.builder.id }}"
+                      operator: Equals
+                      value: "https://token.actions.githubusercontent.com/.*"

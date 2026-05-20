@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# k8s/chaos/02-network-partition.yaml — drop 50% of inter-pod packets
+# =============================================================================
+# Simulates a flaky network between targeted pods and the rest of the
+# cluster. Forces retry logic, circuit breakers and timeouts to prove
+# their behaviour under packet loss.
+#
+# Cilium CNI must be installed (loss action requires the tc/netem stack
+# the chaos-daemon expects to be there — kindnet doesn't ship it).
+# =============================================================================
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: lossy-link
+  namespace: chaos-mesh
+spec:
+  action: loss
+  mode: all                # target ALL matching pods, not just one
+  selector:
+    namespaces: [chaos-target]
+    labelSelectors:
+      "chaos.ngolacloud.ao/eligible": "true"
+  loss:
+    loss: "50"             # drop 50% of packets
+    correlation: "25"      # 25% correlation between consecutive drops
+  duration: "60s"
+  direction: both          # affect both ingress + egress

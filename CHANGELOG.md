@@ -22,6 +22,33 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-05-19  — Tier 11 (resilience + secret sync + SLSA L3)
+
+### Added
+- **External Secrets Operator** (`scripts/eso-install.sh`) — v0.10.4.
+  ClusterSecretStore + sample ExternalSecret demonstrating
+  Vault → K8s Secret sync. `--with-vault` bootstraps in-cluster
+  Vault dev (root token visible — DEV ONLY), enables kubernetes auth
+  backend, seeds sample secret. `--demo` shows the synced K8s Secret.
+- **chaos-mesh** (`scripts/chaos-install.sh`) — v2.7.0 with three
+  baseline experiments (PodChaos, NetworkChaos, StressChaos).
+  All scoped to `chaos-target` namespace + opt-in label
+  (`chaos.ngolacloud.ao/eligible=true`) — system pods never touched.
+- **SLSA L3** via `cosign attest`:
+    - `cosign attest <image> <predicate>` attaches provenance
+    - `cosign verify-attest` validates
+    - `k8s/supply-chain/verify-images-slsa-policy.yaml` Kyverno policy
+      requires signature + provenance attestation
+- **kube-bench CI drift gate** (`.github/workflows/kube-bench.yml`) —
+  weekly + on `kind/` changes. Spins fresh Kind on the runner,
+  fails if CIS FAIL count regresses past baseline (MAX_FAILS=5).
+- ADR-0010: chaos-mesh + ESO + SLSA L3 rationale + trade-offs.
+- 15 new make targets.
+
+### Changed
+- `scripts/cosign-setup.sh` gains `attest` / `verify-attest` /
+  `apply-policy-slsa` subcommands.
+
 ## [0.9.0] — 2026-05-19  — Tier 10 (supply-chain trust)
 
 ### Added

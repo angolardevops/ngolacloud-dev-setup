@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# k8s/chaos/03-cpu-stress.yaml — peg 1 CPU at 80% for 60s
+# =============================================================================
+# Validates HPA scaling decisions + alerting thresholds + slice memory
+# budget under sustained CPU pressure.
+#
+# Scope: one matching pod at a time so we don't burn the whole laptop.
+# =============================================================================
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: cpu-stress
+  namespace: chaos-mesh
+spec:
+  mode: one
+  selector:
+    namespaces: [chaos-target]
+    labelSelectors:
+      "chaos.ngolacloud.ao/eligible": "true"
+  stressors:
+    cpu:
+      workers: 1
+      load: 80              # 80% of 1 vCPU
+  duration: "60s"

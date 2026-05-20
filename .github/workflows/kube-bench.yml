@@ -1,0 +1,87 @@
+---
+# =============================================================================
+# .github/workflows/kube-bench.yml — CIS Benchmark drift gate
+# =============================================================================
+# Spins up a fresh Kind cluster on the GitHub Actions runner, applies our
+# kind/cluster-dev.yaml, runs kube-bench, and FAILS the workflow if any
+# CIS check regresses below the previous baseline.
+#
+# Frequency: weekly + on changes to kind/ or .github/workflows/. Not on
+# every PR (5 min boot per run is too much overhead for unrelated changes).
+# =============================================================================
+name: kube-bench
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'kind/**'
+      - '.github/workflows/kube-bench.yml'
+      - 'ansible/roles/system_tuning/**'
+      - 'ansible/roles/docker_engine/**'
+  schedule:
+    - cron: '0 7 * * 1'      # Monday 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cis-bench:
+    name: CIS Kubernetes Benchmark
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install kind
+        uses: helm/kind-action@v1
+        with:
+          version: v0.30.0
+          cluster_name: ngolacloud-dev-ci
+          config: kind/cluster-dev.yaml
+          wait: 3m
+
+      - name: Apply kube-bench Job
+        run: |
+          kubectl apply -f k8s/security/kube-bench.yaml
+          kubectl -n security wait --for=condition=complete \
+            job/kube-bench --timeout=180s
+
+      - name: Capture bench output
+        id: bench
+        run: |
+          kubectl -n security logs job/kube-bench --tail=-1 > kube-bench-report.txt
+          # Extract summary line (FAIL count)
+          fails=$(grep -E "^FAIL" kube-bench-report.txt | wc -l)
+          warns=$(grep -E "^WARN" kube-bench-report.txt | wc -l)
+          echo "fails=$fails" >> "$GITHUB_OUTPUT"
+          echo "warns=$warns" >> "$GITHUB_OUTPUT"
+          {
+            echo "## CIS Benchmark report"
+            echo
+            echo "**FAIL:** $fails  **WARN:** $warns"
+            echo
+            echo '```'
+            tail -50 kube-bench-report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload full report
+        uses: actions/upload-artifact@v4
+        with:
+          name: kube-bench-${{ github.sha }}
+          path: kube-bench-report.txt
+          retention-days: 90
+
+      - name: Gate on FAIL count
+        env:
+          MAX_FAILS: 5    # baseline — adjust as the cluster hardens
+          ACTUAL_FAILS: ${{ steps.bench.outputs.fails }}
+        run: |
+          if [ "$ACTUAL_FAILS" -gt "$MAX_FAILS" ]; then
+            echo "::error::CIS Bench failures regressed: $ACTUAL_FAILS > baseline $MAX_FAILS"
+            exit 1
+          fi
+          echo "::notice::CIS Bench failures within baseline ($ACTUAL_FAILS ≤ $MAX_FAILS)"

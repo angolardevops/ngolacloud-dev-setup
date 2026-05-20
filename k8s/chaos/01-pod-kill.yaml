@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# k8s/chaos/01-pod-kill.yaml — randomly kill 1 pod every 5 min
+# =============================================================================
+# Validates that the cluster's Deployments are actually resilient to pod
+# loss: replicas restart, services stay reachable, no manual intervention.
+#
+# Scope: ONLY the `chaos-target` namespace (must label workloads explicitly
+# to opt in). The system namespaces are never touched.
+# =============================================================================
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: random-pod-kill
+  namespace: chaos-mesh
+spec:
+  action: pod-kill
+  mode: one             # kill one pod per iteration
+  duration: "30s"
+  selector:
+    namespaces: [chaos-target]
+    labelSelectors:
+      "chaos.ngolacloud.ao/eligible": "true"
+  scheduler:
+    cron: "*/5 * * * *"   # every 5 minutes

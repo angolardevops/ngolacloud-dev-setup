@@ -46,7 +46,11 @@ endif
         opencost-install opencost-report opencost-ui opencost-uninstall \
         security-stack \
         cosign-install cosign-keygen cosign-sign cosign-verify \
-        cosign-policy-apply cosign-policy-remove supply-chain-stack
+        cosign-policy-apply cosign-policy-remove supply-chain-stack \
+        cosign-attest cosign-verify-attest cosign-policy-slsa \
+        eso-install eso-with-vault eso-demo eso-uninstall \
+        chaos-install chaos-apply chaos-target chaos-status chaos-uninstall \
+        resilience-stack
 
 .DEFAULT_GOAL := help
 
@@ -248,6 +252,47 @@ cosign-policy-remove: ## kubectl delete the verifyImages ClusterPolicy
 	@scripts/cosign-setup.sh remove-policy
 
 supply-chain-stack: cosign-install cosign-policy-apply ## Install supply-chain trust gate
+
+cosign-attest: ## Attach a SLSA attestation. Usage: make cosign-attest IMAGE=... PREDICATE=slsa.json
+	@scripts/cosign-setup.sh attest $(IMAGE) $(PREDICATE)
+
+cosign-verify-attest: ## Verify SLSA attestation. Usage: make cosign-verify-attest IMAGE=...
+	@scripts/cosign-setup.sh verify-attest $(IMAGE)
+
+cosign-policy-slsa: ## Apply the SLSA-required verifyImages policy
+	@scripts/cosign-setup.sh apply-policy-slsa
+
+# ──────────────────────────────────────────────────────────────────────────
+# Tier 11 — resilience + secret sync
+# ──────────────────────────────────────────────────────────────────────────
+eso-install: ## Install External Secrets Operator
+	@scripts/eso-install.sh
+
+eso-with-vault: ## Install ESO + Vault dev + sample wiring
+	@scripts/eso-install.sh --with-vault
+
+eso-demo: ## Show the synced K8s Secret value (after eso-with-vault)
+	@scripts/eso-install.sh --demo
+
+eso-uninstall: ## Remove ESO + Vault dev
+	@scripts/eso-install.sh --uninstall
+
+chaos-install: ## Install chaos-mesh
+	@scripts/chaos-install.sh
+
+chaos-apply: ## Install chaos-mesh + apply 3 baseline experiments
+	@scripts/chaos-install.sh --apply
+
+chaos-target: ## Create a sample chaos-target/chaos-canary deployment
+	@scripts/chaos-install.sh --target
+
+chaos-status: ## Show running chaos experiments + recent events
+	@scripts/chaos-install.sh --status
+
+chaos-uninstall: ## Remove chaos-mesh + experiments
+	@scripts/chaos-install.sh --uninstall
+
+resilience-stack: eso-with-vault chaos-apply ## Install Tier 11 (ESO + Vault + chaos)
 
 uninstall: ## Revert as much as possible (slice + sysctl override + daemon.json)
 	@printf "$(RED)── uninstall ──$(NC)\n"
