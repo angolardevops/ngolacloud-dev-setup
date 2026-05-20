@@ -89,7 +89,12 @@ ngolacloud-dev-setup/
 │   ├── health-check.sh
 │   └── benchmark.sh
 └── docs/
-    └── adr/                  # decisões arquitecturais
+    ├── ecosystem.md                       # NgolaCloud repo map (see this first)
+    ├── integration-with-ngolacloud-portal.md
+    ├── integration-with-ngolacloud-cli.md
+    ├── divergence-from-prod.md
+    ├── troubleshooting.md
+    └── adr/                               # 10 architectural decision records
 ```
 
 ## Targets do Makefile
