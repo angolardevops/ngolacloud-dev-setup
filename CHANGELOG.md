@@ -22,6 +22,27 @@ The major version is bumped on:
 
 ## [Unreleased]
 
+## [1.2.2] — 2026-05-20  — Patch: pre-commit + mise broken-venv guard
+
+### Fixed
+- `.pre-commit-config.yaml` now pins `language_version: python3.12`
+  on **every** hook. `default_language_version` at the top is only
+  honoured for hooks that don't pin their own — and ansible-lint
+  requested generic `python3`, which `pre-commit` resolves to the
+  highest interpreter in `PATH`. On a workstation with **mise**
+  managing Python, that means `~/.local/bin/python3.14` (the latest
+  shim), whose venvs are broken (`ModuleNotFoundError: No module
+  named 'encodings'`) — they import the system `encodings` module
+  but the shim doesn't ship one. `/usr/bin/python3.12` (apt) has a
+  complete stdlib and produces working venvs, so we force it
+  per-hook with a 12-line explanatory comment block.
+
+### Notes
+- If you hit the broken venv before the fix, clear the
+  `~/.cache/pre-commit/` dir (`rm -rf ~/.cache/pre-commit/`) and
+  re-run `pre-commit install --install-hooks`. The zombie
+  `py_env-python3.14` will not be regenerated.
+
 ## [1.2.1] — 2026-05-20  — Patch: bootstrap-dev + valid pre-commit pins
 
 ### Fixed
