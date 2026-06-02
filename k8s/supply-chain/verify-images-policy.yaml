@@ -68,7 +68,16 @@ spec:
         - imageReferences:
             - "ghcr.io/angolardevops/*"
             - "registry.ngolacloud.ao/*"
+            - "registry.ngolacloud.com/*"   # Sprint 5 — Harbor canonical (the .ao
+                                            # entry above predates the rename and
+                                            # is kept for backwards compat).
             - "ngolacloud/*"
+          # Kyverno requires mutateDigest=false while in Audit mode
+          # (otherwise it would rewrite tags → digests at admission,
+          # which is a mutating action incompatible with audit-only).
+          # When flipping to Enforce, you can choose to leave this
+          # false or set it to true to pin digests at admission.
+          mutateDigest: false
           # ─── B. KEYLESS (default) ─────────────────────────────────────
           attestors:
             - entries:
@@ -85,3 +94,51 @@ spec:
           #             -----BEGIN PUBLIC KEY-----
           #             ... (cosign generate-key-pair output) ...
           #             -----END PUBLIC KEY-----
+
+    # ─── ngc-bpf-agent — narrower rule, signed by the dedicated workflow ──
+    # The general rule above accepts any signature from angolardevops/*; this
+    # narrower rule pins the agent specifically to bpf-agent-publish.yml,
+    # so a leaked OIDC token from an unrelated workflow can't be used to
+    # sign a tampered ngc-bpf-agent image.
+    - name: verify-bpf-agent
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces:
+                - ngolacloud-system
+      verifyImages:
+        - imageReferences:
+            - "registry.ngolacloud.com/ngc-bpf-agent*"
+          mutateDigest: false   # Audit-mode requirement (see general rule)
+          attestors:
+            - entries:
+                - keyless:
+                    subject: "https://github.com/angolardevops/ngolacloud-cli/.github/workflows/bpf-agent-publish.yml@*"
+                    issuer: "https://token.actions.githubusercontent.com"
+                    rekor:
+                      url: "https://rekor.sigstore.dev"
+
+    # ─── ngc-bpf-operator — pinned to its own publish workflow ────────────
+    # Same reasoning as verify-bpf-agent: the operator runs with broad RBAC
+    # (it creates DaemonSets, SAs, Secrets across the firewall fleet), so a
+    # tampered operator image is high blast-radius. Pin admission to images
+    # signed specifically by operator-publish.yml.
+    - name: verify-bpf-operator
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces:
+                - ngolacloud-system
+      verifyImages:
+        - imageReferences:
+            - "registry.ngolacloud.com/ngolacloud-images/ngc-bpf-operator*"
+          mutateDigest: false   # Audit-mode requirement (see general rule)
+          attestors:
+            - entries:
+                - keyless:
+                    subject: "https://github.com/angolardevops/ngolacloud-bpf-operator/.github/workflows/operator-publish.yml@*"
+                    issuer: "https://token.actions.githubusercontent.com"
+                    rekor:
+                      url: "https://rekor.sigstore.dev"
