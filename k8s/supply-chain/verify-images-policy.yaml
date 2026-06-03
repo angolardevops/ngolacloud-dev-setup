@@ -119,6 +119,30 @@ spec:
                     rekor:
                       url: "https://rekor.sigstore.dev"
 
+    # ─── ngolacloud-portal — pinned to its signing workflow ───────────────
+    # The portal image is built by ci.yml (image-publish job) and signed
+    # keylessly by cosign-sign-images.yml (workflow_run on "CI"). The signing
+    # workflow URL is the Fulcio cert subject, so we pin admission to that
+    # exact workflow — not the broad angolardevops/* identity the general rule
+    # accepts. Blast radius is high: the portal runs as the platform control
+    # plane (creates clusters, runs helm against tenant namespaces).
+    - name: verify-portal
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/angolardevops/ngolacloud-portal*"
+          mutateDigest: false   # Audit-mode requirement (see general rule)
+          attestors:
+            - entries:
+                - keyless:
+                    subject: "https://github.com/angolardevops/ngolacloud-portal/.github/workflows/cosign-sign-images.yml@*"
+                    issuer: "https://token.actions.githubusercontent.com"
+                    rekor:
+                      url: "https://rekor.sigstore.dev"
+
     # ─── ngc-bpf-operator — pinned to its own publish workflow ────────────
     # Same reasoning as verify-bpf-agent: the operator runs with broad RBAC
     # (it creates DaemonSets, SAs, Secrets across the firewall fleet), so a
