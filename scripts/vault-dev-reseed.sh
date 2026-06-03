@@ -160,18 +160,36 @@ check
 # AUTOMATING ON BOOT (optional)
 # -----------------------------
 # To run this automatically after a host/kind restart, add a user systemd unit
-# that waits for the kube-apiserver and then runs this script, e.g.:
+# that waits for the apiserver AND vault-0 AND the portal pod to be Ready (the
+# script execs into both), then runs this script. A bare `kubectl get ns` gate
+# is NOT enough — the reseed needs vault-0 + portal up to reconfigure auth and
+# mint tokens. Example (this is the unit that ships working in dev):
 #
 #   ~/.config/systemd/user/ngc-vault-reseed.service
 #     [Unit]
-#     Description=Re-seed dev Vault + ESO after cluster restart
+#     Description=Re-seed dev Vault + ESO after cluster/host restart
 #     After=network-online.target
+#     Wants=network-online.target
 #     [Service]
 #     Type=oneshot
+#     TimeoutStartSec=900
+#     Environment=KUBECONFIG=%h/.kube/config
+#     Environment=PATH=/usr/local/bin:/usr/bin:/bin
 #     ExecStartPre=/usr/bin/env bash -c 'until kubectl get ns >/dev/null 2>&1; do sleep 5; done'
+#     ExecStartPre=/usr/bin/env bash -c 'until [ "$(kubectl get pod vault-0 -n vault-system -o jsonpath="{.status.containerStatuses[0].ready}" 2>/dev/null)" = "true" ]; do sleep 5; done'
+#     ExecStartPre=/usr/bin/env bash -c 'until kubectl get pod -n ngolacloud -l app.kubernetes.io/name=portal -o jsonpath="{.items[*].status.containerStatuses[*].ready}" 2>/dev/null | tr " " "\n" | grep -q "^true$"; do sleep 5; done'
 #     ExecStart=%h/…/dev-setup/scripts/vault-dev-reseed.sh
 #     [Install]
 #     WantedBy=default.target
 #
+#   systemctl --user daemon-reload
 #   systemctl --user enable --now ngc-vault-reseed.service
+#   # headless box that boots WITHOUT a login? enable lingering once:
+#   loginctl enable-linger "$USER"
+#
+# ROOT CAUSE NOTE: the Vault "crashes" that trigger this are NOT a Vault bug or
+# an OOM (no OOMKilled; usage sits ~209Mi under the 256Mi limit). They are the
+# kind node sandbox being recreated on a containerd/host restart — pod event
+# `SandboxChanged`. -dev mode is in-memory, so the sandbox swap wipes state.
+# This unit is the recovery; there is no Vault-config fix to make.
 # =============================================================================
