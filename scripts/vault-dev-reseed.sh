@@ -117,7 +117,7 @@ if [ ! -f "$MIGRATE_SCRIPT" ]; then
   log_error "migrate_to_eso.py not found at $MIGRATE_SCRIPT — set MIGRATE_SCRIPT=…"
   exit 4
 fi
-PORTAL=$(kubectl get pods -n "$PORTAL_NS" -l app=portal -o name 2>/dev/null | head -1)
+PORTAL=$(kubectl get pods -n "$PORTAL_NS" -l app.kubernetes.io/name=portal -o name 2>/dev/null | head -1)
 [ -z "$PORTAL" ] && { log_error "no portal pod in ns $PORTAL_NS"; exit 5; }
 log_info "portal pod: $PORTAL"
 
